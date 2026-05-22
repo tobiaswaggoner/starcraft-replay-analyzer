@@ -102,6 +102,12 @@ def parse_replay(path: Path) -> ParsedReplay:
             apm = float(apm) if apm is not None else None
         except (TypeError, ValueError):
             apm = None
+        # The sc2reader upstream branch doesn't expose avg_apm; compute it
+        # ourselves from the player's event count / game duration in minutes.
+        if apm is None:
+            events_count = len(getattr(p, "events", []) or [])
+            if events_count > 0 and duration_seconds > 0:
+                apm = events_count / (duration_seconds / 60.0)
 
         is_human = bool(_safe(p, "is_human", default=True))
         # Fallback: sc2reader names AI players "A.I. 1 (Very Hard)" etc.

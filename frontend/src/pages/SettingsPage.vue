@@ -8,6 +8,8 @@ const scanResult = ref<{ seen: number; new: number; errors: number } | null>(nul
 const scanning = ref(false);
 const recomputing = ref(false);
 const recomputeResult = ref<{ players: number; metrics: string[]; elapsed_seconds: number } | null>(null);
+const reparsingApm = ref(false);
+const reparseApmResult = ref<{ matches: number; updated_players: number; skipped_missing_files: number; errors: number; elapsed_seconds: number } | null>(null);
 
 const newApiKey = ref("");
 const savingKey = ref(false);
@@ -30,6 +32,11 @@ async function rescan() {
 async function recompute() {
   recomputing.value = true;
   try { recomputeResult.value = await api.recompute(); } finally { recomputing.value = false; }
+}
+
+async function reparseApm() {
+  reparsingApm.value = true;
+  try { reparseApmResult.value = await api.reparseApm(); } finally { reparsingApm.value = false; }
 }
 
 async function saveKey() {
@@ -195,6 +202,26 @@ async function runBatchTagging() {
     <div v-if="recomputeResult" class="mono" style="margin-top: 14px; color: var(--text-dim);">
       {{ recomputeResult.players }} players · {{ recomputeResult.metrics.length }} metrics ·
       {{ recomputeResult.elapsed_seconds.toFixed(2) }}s
+    </div>
+  </div>
+
+  <div class="card" style="margin-top: 16px;">
+    <div style="display: flex; align-items: center; justify-content: space-between; gap: 16px;">
+      <div>
+        <div style="font-weight: 600">Re-parse replays (APM)</div>
+        <div style="color: var(--text-muted); font-size: 13px;">
+          Re-open every <code>.SC2Replay</code> file and refresh just the APM metric.
+          Use this once after upgrading the parser. Tags and other data are untouched.
+        </div>
+      </div>
+      <button class="btn" :disabled="reparsingApm" @click="reparseApm">
+        {{ reparsingApm ? "Re-parsing…" : "Re-parse APM" }}
+      </button>
+    </div>
+    <div v-if="reparseApmResult" class="mono" style="margin-top: 14px; color: var(--text-dim);">
+      {{ reparseApmResult.matches }} matches · {{ reparseApmResult.updated_players }} player APMs updated ·
+      {{ reparseApmResult.skipped_missing_files }} skipped · {{ reparseApmResult.errors }} errors ·
+      {{ reparseApmResult.elapsed_seconds.toFixed(2) }}s
     </div>
   </div>
 </template>

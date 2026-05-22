@@ -16,7 +16,7 @@ from .config import settings
 from .db import get_conn, init_db
 from .ingest import scan_folder
 from .metrics import REGISTRY as METRIC_REGISTRY
-from .recompute import recompute_all
+from .recompute import recompute_all, reparse_apm
 from . import targets as targets_module
 from . import app_settings as app_settings_module
 from . import tags_vocab
@@ -134,6 +134,13 @@ def ingest_scan() -> dict[str, Any]:
 def ingest_recompute() -> dict[str, Any]:
     """Re-evaluate all metric functions on existing matches using stored timeseries."""
     return recompute_all()
+
+
+@app.post("/api/ingest/reparse-apm")
+def ingest_reparse_apm() -> dict[str, Any]:
+    """Re-open each replay file and refresh just the APM metric per player.
+    Use this after the parser's APM logic changes — no other data is touched."""
+    return reparse_apm()
 
 
 # --- App settings (UI-editable runtime config) ---

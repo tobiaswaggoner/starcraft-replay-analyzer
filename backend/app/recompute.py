@@ -8,6 +8,9 @@ from __future__ import annotations
 
 import logging
 from datetime import datetime
+from pathlib import Path
+
+import sc2reader
 
 from .db import get_conn
 from .metrics import REGISTRY, compute_all
@@ -71,3 +74,67 @@ def recompute_all() -> dict:
     elapsed = (datetime.now() - started).total_seconds()
     log.info("Recomputed %d players in %.2fs", touched_players, elapsed)
     return {"players": touched_players, "metrics": metric_names, "elapsed_seconds": elapsed}
+
+
+def reparse_apm() -> dict:
+    """Open every replay file fresh and refresh just the APM metric per player.
+
+    Needed because older sc2reader exposed avg_apm directly; the upstream branch
+    no longer does, so old matches were ingested with APM=None. This endpoint
+    re-derives APM from the replay's per-player event count without touching
+    tags, timeseries, or any other data.
+    """
+    started = datetime.now()
+    updated_players = 0
+    matches_done = 0
+    skipped_missing = 0
+    errors = 0
+
+    with get_conn() as conn:
+        matches = list(conn.execute("SELECT id, file_path FROM matches"))
+
+    for m in matches:
+        path = Path(m["file_path"])
+        if not path.exists():
+            skipped_missing += 1
+            continue
+        try:
+            replay = sc2reader.load_replay(str(path), load_level=4)
+        except Exception as e:
+            log.warning("reparse_apm: load failed for %s: %s", path, e)
+            errors += 1
+            continue
+
+        duration = 0
+        for attr in ("game_length", "length"):
+            v = getattr(replay, attr, None)
+            if v is not None:
+                duration = getattr(v, "seconds", 0) or 0
+                break
+
+        with get_conn() as conn:
+            for p in getattr(replay, "players", []) or []:
+                events_count = len(getattr(p, "events", []) or [])
+                apm = events_count / (duration / 60.0) if duration > 0 else None
+                pid = getattr(p, "pid", 0) or 0
+                cur = conn.execute(
+                    """INSERT INTO player_metrics (player_id, metric_name, value)
+                       SELECT pl.id, 'apm', ? FROM players pl
+                       WHERE pl.match_id = ? AND pl.player_index = ?
+                       ON CONFLICT(player_id, metric_name) DO UPDATE SET value = excluded.value""",
+                    (apm, m["id"], pid),
+                )
+                if cur.rowcount > 0:
+                    updated_players += 1
+        matches_done += 1
+
+    elapsed = (datetime.now() - started).total_seconds()
+    log.info("reparse_apm: %d matches, %d player metrics updated in %.2fs",
+             matches_done, updated_players, elapsed)
+    return {
+        "matches": matches_done,
+        "updated_players": updated_players,
+        "skipped_missing_files": skipped_missing,
+        "errors": errors,
+        "elapsed_seconds": elapsed,
+    }

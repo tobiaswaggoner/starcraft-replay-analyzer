@@ -234,6 +234,7 @@ export const api = {
   },
   scan: () => post<{ seen: number; new: number; errors: number }>("/api/ingest/scan"),
   recompute: () => post<{ players: number; metrics: string[]; elapsed_seconds: number }>("/api/ingest/recompute"),
+  reparseApm: () => post<{ matches: number; updated_players: number; skipped_missing_files: number; errors: number; elapsed_seconds: number }>("/api/ingest/reparse-apm"),
   listTargets: () => get<{ items: TrainingTarget[] }>("/api/targets"),
   createTarget: (t: TrainingTargetInput) => post<TrainingTarget>("/api/targets", t),
   updateTarget: (id: number, t: TrainingTargetInput) => patch<TrainingTarget>(`/api/targets/${id}`, t),
