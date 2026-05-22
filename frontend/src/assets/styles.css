@@ -274,13 +274,17 @@ button {
 
 .match-row {
   display: grid;
-  grid-template-columns: 130px 110px 1.2fr 60px 2fr 80px 1fr 70px;
+  grid-template-columns: 130px 150px 1.2fr 60px 2fr 80px 1fr 70px;
   align-items: center;
   gap: 12px;
   padding: 12px 18px;
   border-bottom: 1px solid var(--border);
   transition: background 0.12s;
   cursor: pointer;
+}
+
+.match-row > div {
+  min-width: 0;
 }
 
 .cell-format {
@@ -300,6 +304,7 @@ button {
   align-items: center;
   gap: 6px;
   flex-wrap: nowrap;
+  overflow: hidden;
 }
 
 .cell-opp {
@@ -308,6 +313,7 @@ button {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  min-width: 0;
 }
 
 .cell-map {

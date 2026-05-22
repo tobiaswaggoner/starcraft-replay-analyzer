@@ -443,8 +443,11 @@ def facets() -> dict[str, Any]:
         )]
         tags = [
             _row_to_dict(r) for r in conn.execute(
-                """SELECT t.slug, t.name, t.category, t.color, COUNT(pt.id) AS usage_count
-                   FROM tags t LEFT JOIN player_tags pt ON pt.tag_slug = t.slug
+                """SELECT t.slug, t.name, t.category, t.color,
+                          COUNT(CASE WHEN p.is_me = 1 THEN 1 END) AS usage_count
+                   FROM tags t
+                   LEFT JOIN player_tags pt ON pt.tag_slug = t.slug
+                   LEFT JOIN players p ON p.id = pt.player_id
                    GROUP BY t.slug ORDER BY t.category, t.name"""
             )
         ]
