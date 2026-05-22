@@ -3,6 +3,7 @@ import { computed, onMounted, ref, watch } from "vue";
 import {
   api, formatDate, formatDuration, formatMetric, metricLabel,
   shortenAIName, targetSummary, targetScopeChips, playerColor,
+  categorizeBuildEvent, BUILD_CATEGORY_COLORS, BUILD_CATEGORY_LABELS,
   type MatchDetail, type FacetTag,
 } from "../api/client";
 import RacePill from "../components/RacePill.vue";
@@ -98,12 +99,22 @@ const armySeries = computed(() => {
 const apmPlayers = computed(() => {
   if (!match.value) return [];
   return match.value.players
-    .filter((p) => p.apm_minutes && p.apm_minutes.length > 0)
+    .filter((p) => p.is_human === 1 && p.apm_minutes && p.apm_minutes.length > 0)
     .map((p) => ({
       name: chartLabel(p),
       color: playerColor(p.player_index),
       apm_minutes: p.apm_minutes,
     }));
+});
+
+const buildOrderCollapsed = ref(false);
+
+const filteredBuildEvents = computed(() => {
+  if (!myPlayer.value?.build_events) return [];
+  // Skip the starting workers / units that sc2reader reports at second 0.
+  return myPlayer.value.build_events
+    .filter((e) => e.game_time_seconds > 0)
+    .slice(0, 80);
 });
 
 const METRIC_ORDER = [
@@ -250,17 +261,42 @@ function fmtTime(seconds: number): string {
       <ApmTimeChart :players="apmPlayers" />
     </div>
 
-    <h2 class="section-title">Build order — {{ myPlayer?.name }}</h2>
-    <div class="build-order">
-      <div
-        v-for="(ev, i) in myPlayer?.build_events.slice(0, 60) ?? []"
-        :key="i"
-        class="build-row"
-      >
-        <div class="build-time">{{ fmtTime(ev.game_time_seconds) }}</div>
-        <div class="build-supply">{{ ev.supply ?? '' }}</div>
-        <div class="build-name">{{ ev.name }}</div>
-        <div class="build-type">{{ ev.event_type }}</div>
+    <div class="build-order-wrap">
+      <div class="section-title-row">
+        <h2 class="section-title" style="margin: 0;">
+          Build order — {{ myPlayer ? shortenAIName(myPlayer.name) : '' }}
+        </h2>
+        <button class="collapse-btn" @click="buildOrderCollapsed = !buildOrderCollapsed">
+          {{ buildOrderCollapsed ? "▶ Show" : "▼ Hide" }}
+        </button>
+      </div>
+      <div v-show="!buildOrderCollapsed" class="build-order">
+        <div v-if="filteredBuildEvents.length === 0" style="color: var(--text-muted); padding: 6px 0; font-size: 13px;">
+          No build events after 00:00.
+        </div>
+        <div
+          v-for="(ev, i) in filteredBuildEvents"
+          :key="i"
+          class="build-row"
+        >
+          <span
+            class="build-cat-dot"
+            :style="{ background: BUILD_CATEGORY_COLORS[categorizeBuildEvent(ev.event_type, ev.name)] }"
+            :title="BUILD_CATEGORY_LABELS[categorizeBuildEvent(ev.event_type, ev.name)]"
+          />
+          <div class="build-time mono">{{ fmtTime(ev.game_time_seconds) }}</div>
+          <div class="build-supply mono">{{ ev.supply ?? '' }}</div>
+          <div class="build-name">{{ ev.name }}</div>
+          <span
+            class="build-cat-tag"
+            :style="{
+              color: BUILD_CATEGORY_COLORS[categorizeBuildEvent(ev.event_type, ev.name)],
+              borderColor: BUILD_CATEGORY_COLORS[categorizeBuildEvent(ev.event_type, ev.name)] + '55',
+            }"
+          >
+            {{ BUILD_CATEGORY_LABELS[categorizeBuildEvent(ev.event_type, ev.name)] }}
+          </span>
+        </div>
       </div>
     </div>
   </div>

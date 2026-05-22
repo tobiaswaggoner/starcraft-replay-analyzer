@@ -315,6 +315,37 @@ export function playerColor(playerIndex: number): string {
   return PLAYER_COLORS[i];
 }
 
+// Build event categorization — used for color-coding in the build-order list.
+export type BuildCategory = "worker" | "unit" | "building" | "upgrade" | "other";
+
+const WORKER_NAMES = new Set(["SCV", "Drone", "Probe", "MULE"]);
+
+export function categorizeBuildEvent(eventType: string, name: string): BuildCategory {
+  if (eventType === "upgrade") return "upgrade";
+  if (eventType === "init") return "building";
+  if (eventType === "born") {
+    if (WORKER_NAMES.has(name)) return "worker";
+    return "unit";
+  }
+  return "other";
+}
+
+export const BUILD_CATEGORY_COLORS: Record<BuildCategory, string> = {
+  worker: "#a3d977",   // green
+  unit: "#f87171",     // red
+  building: "#5aa9ff", // blue
+  upgrade: "#b45cff",  // purple
+  other: "#9aa3b6",    // grey
+};
+
+export const BUILD_CATEGORY_LABELS: Record<BuildCategory, string> = {
+  worker: "WORKER",
+  unit: "UNIT",
+  building: "BUILDING",
+  upgrade: "UPGRADE",
+  other: "OTHER",
+};
+
 export function findMe(players: Player[]): Player | undefined {
   return players.find((p) => p.is_me === 1) ?? players.find((p) => p.is_human === 1);
 }
