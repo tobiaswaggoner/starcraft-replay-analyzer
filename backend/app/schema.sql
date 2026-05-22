@@ -49,6 +49,7 @@ CREATE TABLE IF NOT EXISTS build_events (
     player_id           INTEGER NOT NULL REFERENCES players(id) ON DELETE CASCADE,
     game_time_seconds   REAL NOT NULL,
     supply              INTEGER,
+    workers             INTEGER,
     event_type          TEXT NOT NULL,
     name                TEXT NOT NULL
 );

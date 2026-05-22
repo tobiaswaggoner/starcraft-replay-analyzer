@@ -412,7 +412,7 @@ def get_match(match_id: int) -> dict[str, Any]:
             ]
             p["build_events"] = [
                 _row_to_dict(r) for r in conn.execute(
-                    "SELECT game_time_seconds, supply, event_type, name"
+                    "SELECT game_time_seconds, supply, workers, event_type, name"
                     " FROM build_events WHERE player_id = ? ORDER BY game_time_seconds",
                     (prow["id"],),
                 )

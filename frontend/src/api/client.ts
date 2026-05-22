@@ -78,6 +78,7 @@ export interface TimeseriesRow {
 export interface BuildEvent {
   game_time_seconds: number;
   supply: number | null;
+  workers: number | null;
   event_type: "born" | "init" | "upgrade";
   name: string;
 }

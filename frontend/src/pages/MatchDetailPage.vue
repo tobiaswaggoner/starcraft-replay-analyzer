@@ -326,7 +326,8 @@ function fmtTime(seconds: number): string {
                 :title="BUILD_CATEGORY_LABELS[categorizeBuildEvent(ev.event_type, ev.name)]"
               />
               <div class="build-time mono">{{ fmtTime(ev.game_time_seconds) }}</div>
-              <div class="build-supply mono">{{ ev.supply ?? '' }}</div>
+              <div class="build-supply mono" title="Supply">{{ ev.supply ?? '—' }}</div>
+              <div class="build-workers mono" title="Workers">{{ ev.workers ?? '—' }}</div>
               <div class="build-name">{{ ev.name }}</div>
               <span
                 class="build-cat-tag"

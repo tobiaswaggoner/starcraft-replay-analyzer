@@ -99,11 +99,11 @@ def _insert(conn: sqlite3.Connection, parsed: ParsedReplay) -> int:
         if pp.build_events:
             conn.executemany(
                 """
-                INSERT INTO build_events (player_id, game_time_seconds, supply, event_type, name)
-                VALUES (?, ?, ?, ?, ?)
+                INSERT INTO build_events (player_id, game_time_seconds, supply, workers, event_type, name)
+                VALUES (?, ?, ?, ?, ?, ?)
                 """,
                 [
-                    (player_id, e["game_time_seconds"], e.get("supply"), e["event_type"], e["name"])
+                    (player_id, e["game_time_seconds"], e.get("supply"), e.get("workers"), e["event_type"], e["name"])
                     for e in pp.build_events
                 ],
             )

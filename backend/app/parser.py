@@ -306,7 +306,9 @@ def parse_replay(path: Path) -> ParsedReplay:
             by_second[row["game_time_seconds"]] = row
         pp.timeseries = list(by_second.values())
 
-    # Stamp supply onto build_events by walking through timeseries (sorted)
+    # Stamp supply + worker count onto build_events by walking through
+    # timeseries (sorted). For each event we take the latest sample at or
+    # before its timestamp.
     for pp in parsed_players:
         if not pp.timeseries:
             continue
@@ -317,6 +319,7 @@ def parse_replay(path: Path) -> ParsedReplay:
             while ts_idx + 1 < len(ts_sorted) and ts_sorted[ts_idx + 1]["game_time_seconds"] <= ev["game_time_seconds"]:
                 ts_idx += 1
             ev["supply"] = ts_sorted[ts_idx].get("supply_used")
+            ev["workers"] = ts_sorted[ts_idx].get("workers")
 
     fh = file_hash(path)
 

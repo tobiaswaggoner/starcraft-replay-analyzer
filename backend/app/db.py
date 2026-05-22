@@ -36,6 +36,26 @@ def _migrate(conn: sqlite3.Connection) -> None:
     # Cheap to run on every startup; only updates rows that match the AI name pattern.
     conn.execute("UPDATE players SET is_human = 0 WHERE is_human = 1 AND name LIKE 'A.I.%'")
 
+    # workers column on build_events (added so the build-order view can show
+    # worker count alongside supply). Backfilled once from player_timeseries.
+    build_event_cols = {c["name"] for c in conn.execute("PRAGMA table_info(build_events)")}
+    if build_event_cols and "workers" not in build_event_cols:
+        conn.execute("ALTER TABLE build_events ADD COLUMN workers INTEGER")
+        # One-time backfill: stamp workers (and re-stamp supply for consistency)
+        # from the latest timeseries sample at or before each event's timestamp.
+        conn.executescript(
+            """
+            UPDATE build_events
+            SET workers = (
+                SELECT ts.workers FROM player_timeseries ts
+                WHERE ts.player_id = build_events.player_id
+                  AND ts.game_time_seconds <= build_events.game_time_seconds
+                ORDER BY ts.game_time_seconds DESC LIMIT 1
+            )
+            WHERE workers IS NULL;
+            """
+        )
+
     # game_format column on matches (added with the tagging feature).
     match_cols = {c["name"] for c in conn.execute("PRAGMA table_info(matches)")}
     if match_cols and "game_format" not in match_cols:
