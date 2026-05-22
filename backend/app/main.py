@@ -292,7 +292,7 @@ def delete_target(target_id: int) -> dict[str, Any]:
 
 @app.get("/api/matches")
 def list_matches(
-    limit: int = 200,
+    limit: int = 10000,
     offset: int = 0,
     matchup: str | None = None,
     race: str | None = None,
@@ -301,9 +301,15 @@ def list_matches(
     mode: str | None = None,
     tag: str | None = None,
     game_format: str | None = None,
+    include_invalid: bool = False,
 ) -> dict[str, Any]:
     where = []
     params: list[Any] = []
+    # Drop '1v0' single-player custom games (user-confirmed: aborted custom
+    # lobbies with no opponent that ended on game start). Toggle via
+    # include_invalid=true if you ever need to see them.
+    if not include_invalid:
+        where.append("(m.game_format IS NULL OR m.game_format != '1v0')")
     if matchup:
         where.append("m.matchup = ?")
         params.append(matchup)
@@ -480,7 +486,9 @@ def facets() -> dict[str, Any]:
             "SELECT DISTINCT matchup FROM matches WHERE matchup IS NOT NULL ORDER BY matchup"
         )]
         game_formats = [r[0] for r in conn.execute(
-            "SELECT DISTINCT game_format FROM matches WHERE game_format IS NOT NULL ORDER BY game_format"
+            "SELECT DISTINCT game_format FROM matches"
+            " WHERE game_format IS NOT NULL AND game_format != '1v0'"
+            " ORDER BY game_format"
         )]
         tags = [
             _row_to_dict(r) for r in conn.execute(

@@ -138,7 +138,17 @@ def reparse_apm() -> dict:
                         "UPDATE players SET team = ? WHERE id = ?",
                         (team_int, player_id),
                     )
-                is_human = bool(getattr(p, "is_human", True)) and not (getattr(p, "name", "") or "").startswith("A.I.")
+                # Also refresh is_human from sc2reader's truth. Custom maps
+                # name their AI 'Player 2' / 'Computer' etc., so the name
+                # pattern fallback can't catch them — but the sc2reader
+                # Computer class instance correctly has is_human=False.
+                is_human = bool(getattr(p, "is_human", True)) and not (
+                    (getattr(p, "name", "") or "").startswith("A.I.")
+                )
+                conn.execute(
+                    "UPDATE players SET is_human = ? WHERE id = ?",
+                    (1 if is_human else 0, player_id),
+                )
                 player_team_human.append((team_int, is_human))
                 conn.execute(
                     """INSERT INTO player_metrics (player_id, metric_name, value)
