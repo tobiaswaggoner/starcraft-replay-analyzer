@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from "vue";
+import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import {
   api, formatDate, formatDuration, formatMetric, metricLabel,
   shortenAIName, targetSummary, targetScopeChips, playerColor,
@@ -107,7 +107,16 @@ const apmPlayers = computed(() => {
     }));
 });
 
-const buildOrderCollapsed = ref(false);
+const buildOrderCollapsed = ref(true);
+type ExpandedChart = "workers" | "supply" | "army" | "apm" | null;
+const expandedChart = ref<ExpandedChart>(null);
+function closeChartModal() { expandedChart.value = null; }
+
+function onKeydown(e: KeyboardEvent) {
+  if (e.key === "Escape" && expandedChart.value) closeChartModal();
+}
+onMounted(() => window.addEventListener("keydown", onKeydown));
+onBeforeUnmount(() => window.removeEventListener("keydown", onKeydown));
 
 const filteredBuildEvents = computed(() => {
   if (!myPlayer.value?.build_events) return [];
@@ -252,15 +261,31 @@ function fmtTime(seconds: number): string {
     </template>
 
     <h2 class="section-title">Macro over time</h2>
-    <div style="display: grid; gap: 16px; grid-template-columns: 1fr 1fr;">
-      <TimeseriesChart title="Workers" :series="workerSeries" />
-      <TimeseriesChart title="Supply used" :series="supplySeries" />
-    </div>
-    <div style="margin-top: 16px;">
-      <TimeseriesChart title="Army value" :series="armySeries" />
-    </div>
-    <div v-if="apmPlayers.length > 0" style="margin-top: 16px;">
-      <ApmTimeChart :players="apmPlayers" />
+    <div class="charts-grid">
+      <TimeseriesChart
+        title="Workers"
+        :series="workerSeries"
+        maximizable
+        @maximize="expandedChart = 'workers'"
+      />
+      <TimeseriesChart
+        title="Supply used"
+        :series="supplySeries"
+        maximizable
+        @maximize="expandedChart = 'supply'"
+      />
+      <TimeseriesChart
+        title="Army value"
+        :series="armySeries"
+        maximizable
+        @maximize="expandedChart = 'army'"
+      />
+      <ApmTimeChart
+        v-if="apmPlayers.length > 0"
+        :players="apmPlayers"
+        maximizable
+        @maximize="expandedChart = 'apm'"
+      />
     </div>
       </div><!-- /match-detail-main -->
 
@@ -315,5 +340,40 @@ function fmtTime(seconds: number): string {
         </div><!-- /build-order-card -->
       </aside><!-- /match-detail-side -->
     </div><!-- /match-detail-layout -->
+
+    <div
+      v-if="expandedChart"
+      class="modal-backdrop chart-modal-backdrop"
+      @click.self="closeChartModal"
+      @keydown.esc="closeChartModal"
+      tabindex="0"
+    >
+      <div class="chart-modal">
+        <button class="modal-close chart-modal-close" @click="closeChartModal" aria-label="Close">×</button>
+        <TimeseriesChart
+          v-if="expandedChart === 'workers'"
+          title="Workers"
+          :series="workerSeries"
+          height-css="calc(88vh - 70px)"
+        />
+        <TimeseriesChart
+          v-else-if="expandedChart === 'supply'"
+          title="Supply used"
+          :series="supplySeries"
+          height-css="calc(88vh - 70px)"
+        />
+        <TimeseriesChart
+          v-else-if="expandedChart === 'army'"
+          title="Army value"
+          :series="armySeries"
+          height-css="calc(88vh - 70px)"
+        />
+        <ApmTimeChart
+          v-else-if="expandedChart === 'apm'"
+          :players="apmPlayers"
+          height-css="calc(88vh - 70px)"
+        />
+      </div>
+    </div>
   </div>
 </template>

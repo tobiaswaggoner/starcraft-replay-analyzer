@@ -532,7 +532,88 @@ button {
   font-size: 13px;
   font-weight: 600;
   color: var(--text-dim);
-  margin: 0 18px 4px;
+  margin: 0;
+}
+
+.chart-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 16px 4px;
+}
+
+.chart-maximize {
+  font-size: 14px;
+  color: var(--text-muted);
+  padding: 2px 7px;
+  border-radius: var(--radius-sm);
+  border: 1px solid transparent;
+  background: transparent;
+  line-height: 1;
+}
+
+.chart-maximize:hover {
+  color: var(--text);
+  background: var(--surface-hover);
+  border-color: var(--border);
+}
+
+/* Responsive charts grid: 2 cols when >= 880px, 1 col below. */
+.charts-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(440px, 1fr));
+  gap: 16px;
+}
+
+/* Chart maximize modal */
+.chart-modal-backdrop {
+  z-index: 60;
+}
+
+.chart-modal {
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  border-radius: 14px;
+  box-shadow: var(--shadow-md);
+  width: min(1400px, calc(100vw - 48px));
+  height: calc(100vh - 48px);
+  padding: 12px;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+}
+
+.chart-modal > .chart-card {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  border: none;
+  background: transparent;
+  padding: 4px 0 0 0;
+}
+
+.chart-modal > .chart-card > .echart {
+  flex: 1;
+}
+
+.chart-modal-close {
+  position: absolute;
+  top: 12px;
+  right: 14px;
+  z-index: 1;
+  font-size: 26px;
+  color: var(--text-muted);
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-sm);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.chart-modal-close:hover {
+  background: var(--surface-hover);
+  color: var(--text);
 }
 
 .echart {

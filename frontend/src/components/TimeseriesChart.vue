@@ -12,7 +12,10 @@ const props = defineProps<{
   series: { name: string; color: string; data: [number, number][] }[];
   title?: string;
   yLabel?: string;
+  maximizable?: boolean;
+  heightCss?: string;
 }>();
+const emit = defineEmits<{ maximize: [] }>();
 
 function fmtTime(seconds: number): string {
   const m = Math.floor(seconds / 60);
@@ -69,7 +72,16 @@ const option = computed(() => ({
 
 <template>
   <div class="chart-card">
-    <h3 v-if="title">{{ title }}</h3>
-    <v-chart class="echart" :option="option" autoresize />
+    <div class="chart-card-head">
+      <h3 v-if="title">{{ title }}</h3>
+      <button
+        v-if="maximizable"
+        class="chart-maximize"
+        @click="emit('maximize')"
+        aria-label="Maximize"
+        title="Maximize"
+      >⛶</button>
+    </div>
+    <v-chart class="echart" :style="heightCss ? { height: heightCss } : undefined" :option="option" autoresize />
   </div>
 </template>
