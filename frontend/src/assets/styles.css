@@ -274,7 +274,7 @@ button {
 
 .match-row {
   display: grid;
-  grid-template-columns: 130px 110px 1.2fr 60px 1.4fr 80px 1.2fr 70px;
+  grid-template-columns: 130px 110px 1.2fr 60px 2fr 80px 1fr 70px;
   align-items: center;
   gap: 12px;
   padding: 12px 18px;
@@ -291,10 +291,8 @@ button {
 .cell-tags {
   display: flex;
   flex-wrap: wrap;
-  gap: 4px;
+  gap: 4px 5px;
   align-items: center;
-  overflow: hidden;
-  max-height: 26px;
 }
 
 .cell-vs-pills {

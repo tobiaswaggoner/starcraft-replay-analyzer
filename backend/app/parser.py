@@ -60,6 +60,7 @@ class ParsedReplay:
     matchup: str | None
     region: str | None
     players: list[ParsedPlayer]
+    game_format: str | None = None  # '1v1', '2v2', '1v7', etc.
 
 
 _RACE_MAP = {"T": "Terran", "Z": "Zerg", "P": "Protoss", "R": "Random"}
@@ -91,6 +92,7 @@ def parse_replay(path: Path) -> ParsedReplay:
     parsed_players: list[ParsedPlayer] = []
     pid_to_player: dict[int, ParsedPlayer] = {}
 
+    teams_seen: dict[int, int] = {}
     for p in getattr(replay, "players", []) or []:
         race = _normalize_race(_safe(p, "play_race", "pick_race"))
         result = _safe(p, "result")
@@ -107,6 +109,11 @@ def parse_replay(path: Path) -> ParsedReplay:
         if name.startswith("A.I."):
             is_human = False
 
+        # Capture team membership for game_format derivation.
+        team_id = _safe(p, "team_id", "team", default=None)
+        if team_id is not None:
+            teams_seen[int(team_id)] = teams_seen.get(int(team_id), 0) + 1
+
         pp = ParsedPlayer(
             player_index=getattr(p, "pid", 0) or 0,
             toon_handle=toon_handle,
@@ -119,6 +126,20 @@ def parse_replay(path: Path) -> ParsedReplay:
         )
         parsed_players.append(pp)
         pid_to_player[pp.player_index] = pp
+
+    # game_format: sort team sizes ascending → "1v7", "2v2", "1v1".
+    if teams_seen:
+        sizes = sorted(teams_seen.values())
+        game_format = "v".join(str(s) for s in sizes)
+    elif parsed_players:
+        humans = sum(1 for x in parsed_players if x.is_human)
+        ai = len(parsed_players) - humans
+        if ai == 0:
+            game_format = f"{humans}v{humans}"
+        else:
+            game_format = f"{humans}v{ai}"
+    else:
+        game_format = None
 
     for ev in getattr(replay, "tracker_events", []) or []:
         cls_name = ev.__class__.__name__
@@ -203,4 +224,5 @@ def parse_replay(path: Path) -> ParsedReplay:
         matchup=_matchup(parsed_players),
         region=_safe(replay, "region"),
         players=parsed_players,
+        game_format=game_format,
     )

@@ -33,6 +33,35 @@ def _migrate(conn: sqlite3.Connection) -> None:
     # Cheap to run on every startup; only updates rows that match the AI name pattern.
     conn.execute("UPDATE players SET is_human = 0 WHERE is_human = 1 AND name LIKE 'A.I.%'")
 
+    # game_format column on matches (added with the tagging feature).
+    match_cols = {c["name"] for c in conn.execute("PRAGMA table_info(matches)")}
+    if match_cols and "game_format" not in match_cols:
+        conn.execute("ALTER TABLE matches ADD COLUMN game_format TEXT")
+    # Backfill game_format for any rows still NULL: derive humans-vs-AI count.
+    # (Proper team-based detection happens at ingest time for new replays.)
+    conn.executescript(
+        """
+        UPDATE matches
+        SET game_format = (
+            WITH counts AS (
+                SELECT match_id,
+                       SUM(CASE WHEN is_human = 1 THEN 1 ELSE 0 END) AS humans,
+                       SUM(CASE WHEN is_human = 0 THEN 1 ELSE 0 END) AS ai
+                FROM players
+                GROUP BY match_id
+            )
+            SELECT
+                CASE
+                    WHEN c.ai = 0 THEN CAST(c.humans AS TEXT) || 'v' || CAST(c.humans AS TEXT)
+                    WHEN c.humans = 0 THEN CAST(c.ai AS TEXT) || 'v' || CAST(c.ai AS TEXT)
+                    ELSE CAST(c.humans AS TEXT) || 'v' || CAST(c.ai AS TEXT)
+                END
+            FROM counts c WHERE c.match_id = matches.id
+        )
+        WHERE game_format IS NULL;
+        """
+    )
+
     cols = conn.execute("PRAGMA table_info(player_timeseries)").fetchall()
     has_id = any(c["name"] == "id" for c in cols)
     if cols and not has_id:

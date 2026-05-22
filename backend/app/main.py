@@ -10,12 +10,17 @@ from typing import Any
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 
+from pydantic import BaseModel
+
 from .config import settings
 from .db import get_conn, init_db
 from .ingest import scan_folder
 from .metrics import REGISTRY as METRIC_REGISTRY
 from .recompute import recompute_all
 from . import targets as targets_module
+from . import app_settings as app_settings_module
+from . import tags_vocab
+from . import tagging
 from .watcher import ReplayWatcher
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
@@ -32,6 +37,10 @@ _watcher: ReplayWatcher | None = None
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     init_db()
+    with get_conn() as conn:
+        n = tags_vocab.seed_if_empty(conn)
+        if n:
+            log.info("Seeded %d tags from YAML", n)
     global _watcher
     folder = settings.replay_dir_resolved
     if folder:
@@ -57,7 +66,7 @@ def _row_to_dict(row) -> dict[str, Any]:
     return {k: row[k] for k in row.keys()}
 
 
-def _player_with_metrics(conn, player_row) -> dict[str, Any]:
+def _player_with_metrics(conn, player_row, include_tags: bool = True) -> dict[str, Any]:
     metrics = {
         r["metric_name"]: r["value"]
         for r in conn.execute(
@@ -67,6 +76,17 @@ def _player_with_metrics(conn, player_row) -> dict[str, Any]:
     }
     p = _row_to_dict(player_row)
     p["metrics"] = metrics
+    if include_tags:
+        p["tags"] = [
+            _row_to_dict(r) for r in conn.execute(
+                """SELECT pt.tag_slug, pt.source, pt.confidence, pt.reasoning, pt.model,
+                          t.name, t.category, t.color
+                   FROM player_tags pt JOIN tags t ON t.slug = pt.tag_slug
+                   WHERE pt.player_id = ?
+                   ORDER BY pt.source = 'llm' DESC, COALESCE(pt.confidence, -1) DESC""",
+                (player_row["id"],),
+            )
+        ]
     return p
 
 
@@ -116,6 +136,109 @@ def ingest_recompute() -> dict[str, Any]:
     return recompute_all()
 
 
+# --- App settings (UI-editable runtime config) ---
+
+class SettingsPatch(BaseModel):
+    openrouter_api_key: str | None = None
+    tagging_model: str | None = None
+    auto_tag_on_ingest: bool | None = None
+
+
+@app.get("/api/settings")
+def get_settings() -> dict[str, Any]:
+    s = app_settings_module.get_public_view()
+    s["available_models"] = app_settings_module.AVAILABLE_MODELS
+    return s
+
+
+@app.patch("/api/settings")
+def patch_settings(payload: SettingsPatch) -> dict[str, Any]:
+    updates = {k: v for k, v in payload.model_dump().items() if v is not None}
+    app_settings_module.set_many(updates)
+    return get_settings()
+
+
+@app.post("/api/settings/test-connection")
+def settings_test_connection() -> dict[str, Any]:
+    return tagging.test_connection()
+
+
+# --- Tag vocabulary ---
+
+@app.get("/api/tags")
+def list_tags() -> dict[str, Any]:
+    with get_conn() as conn:
+        return {"items": tags_vocab.list_all(conn)}
+
+
+@app.post("/api/tags")
+def create_tag(payload: tags_vocab.TagCreate) -> dict[str, Any]:
+    with get_conn() as conn:
+        existing = tags_vocab.get_one(conn, payload.slug)
+        if existing:
+            raise HTTPException(409, f"Tag '{payload.slug}' already exists")
+        return tags_vocab.create(conn, payload)
+
+
+@app.patch("/api/tags/{slug}")
+def update_tag(slug: str, payload: tags_vocab.TagIn) -> dict[str, Any]:
+    with get_conn() as conn:
+        updated = tags_vocab.update(conn, slug, payload)
+        if not updated:
+            raise HTTPException(404, "Tag not found")
+        return updated
+
+
+@app.delete("/api/tags/{slug}")
+def delete_tag(slug: str) -> dict[str, Any]:
+    with get_conn() as conn:
+        if not tags_vocab.delete(conn, slug):
+            raise HTTPException(404, "Tag not found")
+    return {"ok": True}
+
+
+@app.post("/api/tags/reset-seed")
+def reset_seed_tags() -> dict[str, Any]:
+    with get_conn() as conn:
+        n = tags_vocab.reset_seed(conn)
+    return {"imported": n}
+
+
+# --- LLM tagging ---
+
+@app.post("/api/matches/{match_id}/tag")
+def tag_match_endpoint(match_id: int, retag: bool = False) -> dict[str, Any]:
+    try:
+        return tagging.tag_match(match_id, retag=retag)
+    except tagging.LLMError as e:
+        raise HTTPException(400, str(e))
+
+
+@app.post("/api/tagging/run")
+def run_batch_tagging(limit: int | None = None) -> dict[str, Any]:
+    return tagging.tag_untagged(limit=limit)
+
+
+class ManualTagPayload(BaseModel):
+    tag_slug: str
+
+
+@app.post("/api/players/{player_id}/tags")
+def add_player_tag(player_id: int, payload: ManualTagPayload) -> dict[str, Any]:
+    try:
+        return tagging.add_manual_tag(player_id, payload.tag_slug)
+    except tagging.LLMError as e:
+        raise HTTPException(400, str(e))
+
+
+@app.delete("/api/players/{player_id}/tags/{tag_slug}")
+def remove_player_tag(player_id: int, tag_slug: str, source: str = "manual") -> dict[str, Any]:
+    ok = tagging.remove_player_tag(player_id, tag_slug, source)
+    if not ok:
+        raise HTTPException(404, "Player tag not found")
+    return {"ok": True}
+
+
 # --- Targets ---
 
 @app.get("/api/targets")
@@ -160,6 +283,8 @@ def list_matches(
     result: str | None = None,
     map_name: str | None = None,
     mode: str | None = None,
+    tag: str | None = None,
+    game_format: str | None = None,
 ) -> dict[str, Any]:
     where = []
     params: list[Any] = []
@@ -169,6 +294,9 @@ def list_matches(
     if map_name:
         where.append("m.map_name = ?")
         params.append(map_name)
+    if game_format:
+        where.append("m.game_format = ?")
+        params.append(game_format)
     if race or result:
         where.append("EXISTS (SELECT 1 FROM players p WHERE p.match_id = m.id"
                      + (" AND p.race = ?" if race else "")
@@ -178,6 +306,11 @@ def list_matches(
             params.append(race)
         if result:
             params.append(result)
+    if tag:
+        # Filter on the "me" player having the given tag (any source).
+        where.append("EXISTS (SELECT 1 FROM players p JOIN player_tags pt ON pt.player_id = p.id "
+                     "WHERE p.match_id = m.id AND p.is_me = 1 AND pt.tag_slug = ?)")
+        params.append(tag)
 
     sql_where = (" WHERE " + " AND ".join(where)) if where else ""
     sql = (
@@ -250,6 +383,12 @@ def get_match(match_id: int) -> dict[str, Any]:
         match["mode"] = _compute_mode(players)
         match["player_count_label"] = _player_count_label(players)
 
+        run = conn.execute(
+            "SELECT model, prompt_version, match_summary, created_at FROM tagging_runs WHERE match_id = ?",
+            (match_id,),
+        ).fetchone()
+        match["tagging_run"] = _row_to_dict(run) if run else None
+
         # Evaluate all applicable training targets against the "me" player.
         me = next((p for p in players if p.get("is_me")), None) or next(
             (p for p in players if p.get("is_human")), None
@@ -299,10 +438,22 @@ def facets() -> dict[str, Any]:
         matchups = [r[0] for r in conn.execute(
             "SELECT DISTINCT matchup FROM matches WHERE matchup IS NOT NULL ORDER BY matchup"
         )]
+        game_formats = [r[0] for r in conn.execute(
+            "SELECT DISTINCT game_format FROM matches WHERE game_format IS NOT NULL ORDER BY game_format"
+        )]
+        tags = [
+            _row_to_dict(r) for r in conn.execute(
+                """SELECT t.slug, t.name, t.category, t.color, COUNT(pt.id) AS usage_count
+                   FROM tags t LEFT JOIN player_tags pt ON pt.tag_slug = t.slug
+                   GROUP BY t.slug ORDER BY t.category, t.name"""
+            )
+        ]
     return {
         "maps": maps,
         "matchups": matchups,
+        "game_formats": game_formats,
         "races": ["Terran", "Zerg", "Protoss"],
         "results": ["Win", "Loss"],
         "modes": ["PvP", "PvAI", "AI"],
+        "tags": tags,
     }

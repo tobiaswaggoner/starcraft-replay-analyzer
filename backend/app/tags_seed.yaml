@@ -1,0 +1,73 @@
+# Seed catalog of player tags. Loaded into the `tags` table on first start.
+# After seeding, the DB is the source of truth — edit tags in the UI.
+# A "Reset seed tags" button in the UI re-imports this file (without touching user tags).
+#
+# Each tag has:
+#   slug:               immutable identifier; lowercase-with-dashes
+#   name:               display name
+#   category:           strategy | tech | build | tempo | outcome
+#   description:        what the tag means; the LLM sees this to decide if it applies
+#   applies_to_races:   list of races, or omit for race-agnostic
+#   color:              hex, used for the chip background
+
+categories:
+  strategy:  { color: "#6ea2ff" }   # cool blue
+  tech:      { color: "#a3d977" }   # green
+  build:     { color: "#f1c83b" }   # protoss yellow
+  tempo:     { color: "#f78fb3" }   # pink
+  outcome:   { color: "#9aa3b6" }   # neutral grey
+
+tags:
+  # ===== STRATEGY =====
+  - { slug: macro,             name: "Macro",              category: strategy, description: "Economy-focused playstyle: fast expand, heavy worker production, scale into late-game army." }
+  - { slug: greedy,             name: "Greedy",             category: strategy, description: "Skipped defensive units or production to over-invest in economy or tech." }
+  - { slug: defensive,          name: "Defensive",          category: strategy, description: "Turtle on one or two bases, prioritize static defense and trade efficiency." }
+  - { slug: all-in,             name: "All-In",             category: strategy, description: "Committed everything to one attack; loses if it fails. Production halted to fund the push." }
+  - { slug: cheese,             name: "Cheese",             category: strategy, description: "Surprise gimmick designed to win before the opponent can scout/react (proxy, cannon rush, worker rush, etc.)." }
+  - { slug: timing-attack,      name: "Timing Attack",      category: strategy, description: "Pre-planned attack at a specific game time exploiting a tech/economy advantage." }
+  - { slug: harass-heavy,       name: "Harass-Heavy",       category: strategy, description: "Continuous low-investment raids on workers/expansions to bleed the opponent's economy." }
+
+  # ===== TECH =====
+  # Terran
+  - { slug: bio,                name: "Bio",                category: tech, applies_to_races: [Terran], description: "Marine/Marauder/Medivac composition, often with stim and combat shields." }
+  - { slug: mech,               name: "Mech",               category: tech, applies_to_races: [Terran], description: "Tank/Hellbat/Thor ground composition with siege control." }
+  - { slug: sky-terran,         name: "Sky Terran",         category: tech, applies_to_races: [Terran], description: "Battlecruiser or Liberator-heavy air composition." }
+  - { slug: bio-mine,            name: "Bio + Mine",         category: tech, applies_to_races: [Terran], description: "Bio core with Widow Mines for splash and area denial." }
+  # Zerg
+  - { slug: roach-ravager,      name: "Roach/Ravager",      category: tech, applies_to_races: [Zerg], description: "Roach-Ravager all-in or pressure composition off two or three bases." }
+  - { slug: ling-bane,          name: "Ling/Bane",          category: tech, applies_to_races: [Zerg], description: "Speedlings and Banelings as core army, often paired with Muta or Hydra." }
+  - { slug: muta-switch,        name: "Mutalisk",           category: tech, applies_to_races: [Zerg], description: "Mutalisk-based harass or main army composition." }
+  - { slug: hive-tech,          name: "Hive Tech",          category: tech, applies_to_races: [Zerg], description: "Late-game Zerg: Ultralisks, Brood Lords, Vipers, Lurkers." }
+  # Protoss
+  - { slug: stargate-opening,   name: "Stargate Opening",   category: tech, applies_to_races: [Protoss], description: "Early Stargate for Oracle or Phoenix harass / map control." }
+  - { slug: blink-stalker,      name: "Blink Stalker",      category: tech, applies_to_races: [Protoss], description: "Blink-based Stalker pressure or all-in." }
+  - { slug: immortal-archon,    name: "Immortal/Archon",    category: tech, applies_to_races: [Protoss], description: "Robo-tech with Immortals and Archons as the core army." }
+  - { slug: skytoss,            name: "Skytoss",            category: tech, applies_to_races: [Protoss], description: "Carrier/Tempest/Mothership air composition." }
+  - { slug: disruptor,          name: "Disruptor",          category: tech, applies_to_races: [Protoss], description: "Robo composition leaning heavily on Disruptors for splash." }
+
+  # ===== BUILD =====
+  - { slug: proxy,              name: "Proxy",              category: build, description: "Production building built near the opponent's base for rush distance." }
+  - { slug: 3-rax,              name: "3 Rax",              category: build, applies_to_races: [Terran], description: "Three Barracks before tech/expand, applying early marine/reaper pressure." }
+  - { slug: 1-1-1,              name: "1-1-1",              category: build, applies_to_races: [Terran], description: "Barracks + Factory + Starport tech with no expansion, leading to a banshee/cloak timing." }
+  - { slug: reaper-expand,      name: "Reaper Expand",      category: build, applies_to_races: [Terran], description: "Reaper opening into Command Center, harassing while expanding." }
+  - { slug: cc-first,           name: "CC First",           category: build, applies_to_races: [Terran], description: "Command Center before Barracks on safe maps; greedy economic opening." }
+  - { slug: 12-pool,            name: "12 Pool",            category: build, applies_to_races: [Zerg], description: "Early Pool at 12 supply for fast Zerglings or aggression." }
+  - { slug: hatch-first,        name: "Hatch First",        category: build, applies_to_races: [Zerg], description: "Hatchery before Pool: greedy economic opening on safe maps." }
+  - { slug: 17-pool-17-hatch,   name: "17 Pool / 17 Hatch", category: build, applies_to_races: [Zerg], description: "Standard balanced Zerg opening." }
+  - { slug: cannon-rush,        name: "Cannon Rush",        category: build, applies_to_races: [Protoss], description: "Photon Cannons placed in or near opponent base; cheese variant." }
+  - { slug: nexus-first,        name: "Nexus First",        category: build, applies_to_races: [Protoss], description: "Nexus before any production: greedy economic opening." }
+  - { slug: gateway-expand,     name: "Gateway Expand",     category: build, applies_to_races: [Protoss], description: "Standard Gateway opening into expansion behind a Stalker/Sentry pressure." }
+
+  # ===== TEMPO =====
+  - { slug: 1-base,             name: "1-Base",             category: tempo, description: "No expansion before committing to attack or tech-rush off the main." }
+  - { slug: 2-base,             name: "2-Base",             category: tempo, description: "Standard two-base play; expansion and pressure roughly balanced." }
+  - { slug: 3-base,             name: "3-Base",             category: tempo, description: "Three or more bases established before major army movement; macro-oriented." }
+  - { slug: early-pressure,     name: "Early Pressure",     category: tempo, description: "Attack/contain before 5:00 to gain map control or punish greed." }
+  - { slug: late-game,          name: "Late Game",          category: tempo, description: "Game extended into max-supply or T3-tech territory." }
+
+  # ===== OUTCOME =====
+  - { slug: held-cheese,        name: "Held Cheese",        category: outcome, description: "Faced a cheese/all-in and survived with defenses." }
+  - { slug: lost-to-cheese,     name: "Lost to Cheese",     category: outcome, description: "Lost to an early all-in or cheese before reaching mid-game." }
+  - { slug: gg-out-early,       name: "GG Out Early",       category: outcome, description: "Game ended before 5:00; one side surrendered or was eliminated." }
+  - { slug: eco-lead-converted, name: "Eco Lead Converted", category: outcome, description: "Built a clear economic lead and converted it into a winning army." }
+  - { slug: comeback,           name: "Comeback",           category: outcome, description: "Lost initial engagements or economy but turned the game around." }

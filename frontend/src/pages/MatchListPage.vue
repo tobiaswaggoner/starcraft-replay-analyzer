@@ -25,14 +25,30 @@ function opponentLabel(m: Match): string {
   return opponentsFor(m).map((p) => shortenAIName(p.name)).join(", ");
 }
 
-function topTags(m: Match, max = 3) {
+// Display priority: strategy first, then tech, build, tempo, outcome.
+// Inside each category, highest confidence wins. Manual tags rank above
+// LLM tags of the same category.
+const CATEGORY_ORDER: Record<string, number> = {
+  strategy: 0, tech: 1, build: 2, tempo: 3, outcome: 4,
+};
+
+function rankedTags(m: Match) {
   const me = myFor(m);
-  if (!me || !me.tags) return [];
-  return me.tags.slice(0, max);
+  if (!me?.tags) return [];
+  return [...me.tags].sort((a, b) => {
+    const ca = CATEGORY_ORDER[a.category] ?? 99;
+    const cb = CATEGORY_ORDER[b.category] ?? 99;
+    if (ca !== cb) return ca - cb;
+    if (a.source !== b.source) return a.source === "manual" ? -1 : 1;
+    return (b.confidence ?? 0) - (a.confidence ?? 0);
+  });
 }
-function extraTagCount(m: Match, max = 3): number {
-  const me = myFor(m);
-  return Math.max(0, (me?.tags?.length ?? 0) - max);
+
+function topTags(m: Match, max = 5) {
+  return rankedTags(m).slice(0, max);
+}
+function extraTagCount(m: Match, max = 5): number {
+  return Math.max(0, rankedTags(m).length - max);
 }
 
 const summaryStats = computed(() => {

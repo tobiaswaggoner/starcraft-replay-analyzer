@@ -31,7 +31,15 @@ def ingest_file(path: Path) -> int | None:
             return None
         match_id = _insert(conn, parsed)
         log.info("Ingested %s as match_id=%s", path.name, match_id)
-        return match_id
+
+    # Auto-tag if enabled. Imported lazily to avoid circular import at module load.
+    from . import app_settings, tagging
+    if app_settings.get("auto_tag_on_ingest"):
+        try:
+            tagging.tag_match(match_id, retag=False)
+        except Exception as e:
+            log.warning("Auto-tag failed for match %s: %s", match_id, e)
+    return match_id
 
 
 def _insert(conn: sqlite3.Connection, parsed: ParsedReplay) -> int:
@@ -39,13 +47,13 @@ def _insert(conn: sqlite3.Connection, parsed: ParsedReplay) -> int:
         """
         INSERT INTO matches (
             file_hash, file_path, filename, played_at, duration_seconds,
-            map_name, game_version, game_type, matchup, region
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            map_name, game_version, game_type, matchup, region, game_format
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
         (
             parsed.file_hash, parsed.file_path, parsed.filename, parsed.played_at,
             parsed.duration_seconds, parsed.map_name, parsed.game_version,
-            parsed.game_type, parsed.matchup, parsed.region,
+            parsed.game_type, parsed.matchup, parsed.region, parsed.game_format,
         ),
     )
     match_id = cur.lastrowid
