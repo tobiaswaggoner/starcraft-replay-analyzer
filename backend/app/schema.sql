@@ -101,16 +101,19 @@ CREATE TABLE IF NOT EXISTS tagging_runs (
 );
 
 CREATE TABLE IF NOT EXISTS training_targets (
-    id           INTEGER PRIMARY KEY AUTOINCREMENT,
-    name         TEXT NOT NULL,
-    metric_name  TEXT NOT NULL,
-    operator     TEXT NOT NULL,        -- '>=', '<=', '=='
-    threshold    REAL NOT NULL,
-    race         TEXT,                  -- nullable filter (any)
-    matchup      TEXT,                  -- nullable filter
-    mode         TEXT,                  -- nullable filter ('PvP' / 'PvAI')
-    enabled      INTEGER NOT NULL DEFAULT 1,
-    created_at   TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    name          TEXT NOT NULL,
+    metric_name   TEXT NOT NULL,
+    operator      TEXT NOT NULL,        -- '>=', '<=', '=='
+    threshold     REAL NOT NULL,
+    race          TEXT,                  -- my race
+    matchup       TEXT,                  -- legacy convenience filter (e.g. 'TvZ')
+    mode          TEXT,                  -- 'PvP' / 'PvAI' / 'AI'
+    game_format   TEXT,                  -- '1v1' / '2v2' / '1v7' / ...
+    opponent_race TEXT,                  -- only meaningful for 1v1
+    tags          TEXT,                  -- JSON array of tag slugs (ALL must apply)
+    enabled       INTEGER NOT NULL DEFAULT 1,
+    created_at    TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE IF NOT EXISTS player_apm_minutes (

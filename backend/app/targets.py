@@ -6,6 +6,7 @@ from existing per-player metrics — no separate evaluations table to keep in sy
 
 from __future__ import annotations
 
+import json
 import sqlite3
 from typing import Any
 
@@ -22,6 +23,9 @@ class TargetIn(BaseModel):
     race: str | None = None
     matchup: str | None = None
     mode: str | None = None
+    game_format: str | None = None
+    opponent_race: str | None = None
+    tags: list[str] | None = None  # all tags must be present on my player
     enabled: bool = True
 
     @field_validator("operator")
@@ -30,6 +34,22 @@ class TargetIn(BaseModel):
         if v not in OPERATORS:
             raise ValueError(f"operator must be one of {OPERATORS}")
         return v
+
+    @field_validator("tags")
+    @classmethod
+    def _tags_normalised(cls, v: list[str] | None) -> list[str] | None:
+        if v is None:
+            return None
+        # Drop blanks, preserve order, dedupe.
+        seen: set[str] = set()
+        out: list[str] = []
+        for t in v:
+            t = (t or "").strip()
+            if not t or t in seen:
+                continue
+            seen.add(t)
+            out.append(t)
+        return out or None
 
 
 class Target(TargetIn):
@@ -49,22 +69,27 @@ def get_target(conn: sqlite3.Connection, target_id: int) -> dict | None:
 
 
 def create_target(conn: sqlite3.Connection, t: TargetIn) -> dict:
+    tags_json = json.dumps(t.tags) if t.tags else None
     cur = conn.execute(
         """INSERT INTO training_targets (name, metric_name, operator, threshold,
-            race, matchup, mode, enabled)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+            race, matchup, mode, game_format, opponent_race, tags, enabled)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
         (t.name, t.metric_name, t.operator, t.threshold,
-         t.race, t.matchup, t.mode, 1 if t.enabled else 0),
+         t.race, t.matchup, t.mode, t.game_format, t.opponent_race, tags_json,
+         1 if t.enabled else 0),
     )
     return get_target(conn, cur.lastrowid)  # type: ignore[return-value]
 
 
 def update_target(conn: sqlite3.Connection, target_id: int, t: TargetIn) -> dict | None:
+    tags_json = json.dumps(t.tags) if t.tags else None
     conn.execute(
         """UPDATE training_targets SET name=?, metric_name=?, operator=?, threshold=?,
-            race=?, matchup=?, mode=?, enabled=? WHERE id=?""",
+            race=?, matchup=?, mode=?, game_format=?, opponent_race=?, tags=?,
+            enabled=? WHERE id=?""",
         (t.name, t.metric_name, t.operator, t.threshold,
-         t.race, t.matchup, t.mode, 1 if t.enabled else 0, target_id),
+         t.race, t.matchup, t.mode, t.game_format, t.opponent_race, tags_json,
+         1 if t.enabled else 0, target_id),
     )
     return get_target(conn, target_id)
 
@@ -75,6 +100,11 @@ def delete_target(conn: sqlite3.Connection, target_id: int) -> bool:
 
 
 def _row_to_target(row: sqlite3.Row) -> dict:
+    tags_raw = row["tags"] if "tags" in row.keys() else None
+    try:
+        tags = json.loads(tags_raw) if tags_raw else None
+    except (TypeError, ValueError):
+        tags = None
     return {
         "id": row["id"],
         "name": row["name"],
@@ -84,21 +114,45 @@ def _row_to_target(row: sqlite3.Row) -> dict:
         "race": row["race"],
         "matchup": row["matchup"],
         "mode": row["mode"],
+        "game_format": row["game_format"] if "game_format" in row.keys() else None,
+        "opponent_race": row["opponent_race"] if "opponent_race" in row.keys() else None,
+        "tags": tags,
         "enabled": bool(row["enabled"]),
         "created_at": row["created_at"],
     }
 
 
 def applies_to(target: dict, match: dict, my_player: dict | None) -> bool:
-    """Whether a target should be evaluated for this match given its scope filters."""
+    """Whether a target should be evaluated for this match given its scope filters.
+
+    Every set filter must match (AND). Empty / None filters are ignored.
+    """
     if not target["enabled"]:
         return False
-    if target["mode"] and target["mode"] != match.get("mode"):
+    if target.get("mode") and target["mode"] != match.get("mode"):
         return False
-    if target["matchup"] and target["matchup"] != match.get("matchup"):
+    if target.get("matchup") and target["matchup"] != match.get("matchup"):
         return False
-    if target["race"]:
+    if target.get("game_format") and target["game_format"] != match.get("game_format"):
+        return False
+    if target.get("race"):
         if not my_player or my_player.get("race") != target["race"]:
+            return False
+    if target.get("opponent_race"):
+        # Only meaningful for 1v1: exactly one opponent, race must match.
+        if not my_player:
+            return False
+        opponents = [p for p in (match.get("players") or []) if p.get("id") != my_player.get("id")]
+        if len(opponents) != 1:
+            return False
+        if opponents[0].get("race") != target["opponent_race"]:
+            return False
+    if target.get("tags"):
+        if not my_player:
+            return False
+        player_tag_set = {t.get("tag_slug") for t in (my_player.get("tags") or [])}
+        required = set(target["tags"])
+        if not required.issubset(player_tag_set):
             return False
     return True
 

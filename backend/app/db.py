@@ -60,6 +60,15 @@ def _migrate(conn: sqlite3.Connection) -> None:
     match_cols = {c["name"] for c in conn.execute("PRAGMA table_info(matches)")}
     if match_cols and "game_format" not in match_cols:
         conn.execute("ALTER TABLE matches ADD COLUMN game_format TEXT")
+
+    # Extended training_targets columns (game_format, opponent_race, tags).
+    tt_cols = {c["name"] for c in conn.execute("PRAGMA table_info(training_targets)")}
+    if tt_cols and "game_format" not in tt_cols:
+        conn.execute("ALTER TABLE training_targets ADD COLUMN game_format TEXT")
+    if tt_cols and "opponent_race" not in tt_cols:
+        conn.execute("ALTER TABLE training_targets ADD COLUMN opponent_race TEXT")
+    if tt_cols and "tags" not in tt_cols:
+        conn.execute("ALTER TABLE training_targets ADD COLUMN tags TEXT")
     # Backfill game_format for matches missing it. We can only safely classify
     # the unambiguous case "1+ humans vs 1+ AI" without team info — for
     # humans-only matches (e.g. 1v1 vs 2v2 PvP) we leave NULL and let

@@ -109,6 +109,9 @@ export interface TrainingTarget {
   race: string | null;
   matchup: string | null;
   mode: string | null;
+  game_format: string | null;
+  opponent_race: string | null;
+  tags: string[] | null;
   enabled: boolean;
   created_at: string;
 }
@@ -121,6 +124,9 @@ export interface TrainingTargetInput {
   race?: string | null;
   matchup?: string | null;
   mode?: string | null;
+  game_format?: string | null;
+  opponent_race?: string | null;
+  tags?: string[] | null;
   enabled: boolean;
 }
 
@@ -360,8 +366,13 @@ export function opponentsOf(players: Player[], me: Player | undefined): Player[]
 export function targetScopeChips(t: TrainingTarget): string[] {
   const out: string[] = [];
   if (t.race) out.push(t.race);
+  if (t.opponent_race) out.push(`vs ${t.opponent_race}`);
   if (t.matchup) out.push(t.matchup);
   if (t.mode) out.push(t.mode);
+  if (t.game_format) out.push(t.game_format);
+  if (t.tags && t.tags.length) {
+    for (const slug of t.tags) out.push(`#${slug}`);
+  }
   if (out.length === 0) out.push("any match");
   return out;
 }
