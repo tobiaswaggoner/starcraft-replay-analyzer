@@ -18,6 +18,8 @@ const testResult = ref<{ ok: boolean; model: string; response?: string; error?: 
 
 const batchTagging = ref(false);
 const batchResult = ref<{ candidates: number; tagged: number; errors: any[] } | null>(null);
+const resetting = ref(false);
+const resetResult = ref<{ deleted_llm_tags: number; deleted_runs: number } | null>(null);
 
 async function loadAll() {
   health.value = await api.health();
@@ -72,6 +74,13 @@ async function runBatchTagging() {
   batchTagging.value = true;
   batchResult.value = null;
   try { batchResult.value = await api.runBatchTagging(); } finally { batchTagging.value = false; }
+}
+
+async function resetLlmTags() {
+  if (!window.confirm("Delete every LLM-generated tag and clear tagging history? Manual tags will be kept.")) return;
+  resetting.value = true;
+  resetResult.value = null;
+  try { resetResult.value = await api.resetLlmTags(); } finally { resetting.value = false; }
 }
 </script>
 
@@ -164,6 +173,25 @@ async function runBatchTagging() {
     </div>
     <div v-if="batchResult" class="mono" style="margin-top: 14px; color: var(--text-dim);">
       {{ batchResult.candidates }} candidates · {{ batchResult.tagged }} tagged · {{ batchResult.errors.length }} errors
+    </div>
+  </div>
+
+  <div class="card" style="margin-bottom: 16px;">
+    <div style="display: flex; align-items: center; justify-content: space-between; gap: 16px;">
+      <div>
+        <div style="font-weight: 600">Reset all LLM tags</div>
+        <div style="color: var(--text-muted); font-size: 13px;">
+          Drop every auto-generated tag and clear tagging history. Manual tags you
+          assigned stay untouched. Useful after refining the tag vocabulary or
+          changing the model — afterwards run <em>Tag all untagged</em> to regenerate.
+        </div>
+      </div>
+      <button class="btn danger" :disabled="resetting" @click="resetLlmTags">
+        {{ resetting ? "Resetting…" : "Reset LLM tags" }}
+      </button>
+    </div>
+    <div v-if="resetResult" class="mono" style="margin-top: 14px; color: var(--text-dim);">
+      Deleted {{ resetResult.deleted_llm_tags }} LLM tags · {{ resetResult.deleted_runs }} tagging runs
     </div>
   </div>
 

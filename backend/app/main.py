@@ -222,6 +222,18 @@ def run_batch_tagging(limit: int | None = None) -> dict[str, Any]:
     return tagging.tag_untagged(limit=limit)
 
 
+@app.post("/api/tagging/reset")
+def tagging_reset() -> dict[str, Any]:
+    """Drop every LLM-source player tag and clear tagging_runs.
+    Manual tags are kept. Matches become 'untagged' and can be batch-retagged."""
+    with get_conn() as conn:
+        deleted_tags = conn.execute(
+            "DELETE FROM player_tags WHERE source = 'llm'"
+        ).rowcount
+        deleted_runs = conn.execute("DELETE FROM tagging_runs").rowcount
+    return {"deleted_llm_tags": deleted_tags, "deleted_runs": deleted_runs}
+
+
 class ManualTagPayload(BaseModel):
     tag_slug: str
 

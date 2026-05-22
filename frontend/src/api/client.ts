@@ -228,6 +228,7 @@ export const api = {
     post<{ candidates: number; tagged: number; errors: { match_id: number; error: string }[] }>(
       `/api/tagging/run${limit ? `?limit=${limit}` : ""}`,
     ),
+  resetLlmTags: () => post<{ deleted_llm_tags: number; deleted_runs: number }>("/api/tagging/reset"),
   addPlayerTag: (playerId: number, tagSlug: string) =>
     post<{ player_id: number; tag_slug: string; source: string }>(`/api/players/${playerId}/tags`, { tag_slug: tagSlug }),
   removePlayerTag: (playerId: number, tagSlug: string, source: string = "manual") =>
