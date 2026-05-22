@@ -14,7 +14,7 @@ import sc2reader
 
 from .db import get_conn
 from .metrics import REGISTRY, compute_all
-from .parser import ParsedPlayer, ParsedReplay, compute_apm_total, compute_apm_minutes
+from .parser import ParsedPlayer, ParsedReplay, compute_apm_total, compute_apm_minutes, derive_game_format
 
 log = logging.getLogger(__name__)
 
@@ -112,6 +112,7 @@ def reparse_apm() -> dict:
                 duration = getattr(v, "seconds", 0) or 0
                 break
 
+        player_team_human: list[tuple[int | None, bool]] = []
         with get_conn() as conn:
             for p in getattr(replay, "players", []) or []:
                 apm = compute_apm_total(p, duration)
@@ -137,6 +138,8 @@ def reparse_apm() -> dict:
                         "UPDATE players SET team = ? WHERE id = ?",
                         (team_int, player_id),
                     )
+                is_human = bool(getattr(p, "is_human", True)) and not (getattr(p, "name", "") or "").startswith("A.I.")
+                player_team_human.append((team_int, is_human))
                 conn.execute(
                     """INSERT INTO player_metrics (player_id, metric_name, value)
                        VALUES (?, 'apm', ?)
@@ -150,6 +153,15 @@ def reparse_apm() -> dict:
                         [(player_id, r["minute"], r["apm"]) for r in buckets],
                     )
                 updated_players += 1
+
+            # Re-derive game_format from team membership + is_human. Without
+            # team info the migration's heuristic stays in place; with team info
+            # we now correctly distinguish 1v1 PvP from 2v2 PvP, and collapse
+            # multi-team AI into a single opposition bucket (1v7 coop instead
+            # of "1v1v1v1v1v1v1v1").
+            fmt = derive_game_format(player_team_human)
+            if fmt:
+                conn.execute("UPDATE matches SET game_format = ? WHERE id = ?", (fmt, m["id"]))
         matches_done += 1
 
     elapsed = (datetime.now() - started).total_seconds()

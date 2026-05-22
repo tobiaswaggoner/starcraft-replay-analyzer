@@ -83,6 +83,49 @@ def _matchup(players: list[ParsedPlayer]) -> str | None:
     return f"{a}v{b}"
 
 
+def derive_game_format(player_team_human: list[tuple[int | None, bool]]) -> str | None:
+    """Compute '1v1' / '2v2' / '1v7' from per-player (team, is_human) tuples.
+
+    Logic:
+    - Group players by team (drop players with missing team info).
+    - If only one team contains humans (coop / PvAI / single-player), collapse
+      all non-human-team players into a single opposition bucket → '{n}v{rest}'.
+      This avoids 1v7 showing up as '1v1v1v1v1v1v1v1' just because sc2reader
+      puts each AI on its own internal team.
+    - If 2+ teams contain humans (real PvP), use the per-team sizes joined
+      with 'v' so a 2v2 ladder match shows as '2v2'.
+    """
+    if not player_team_human:
+        return None
+    by_team: dict[int, dict[str, int]] = {}
+    for team, is_human in player_team_human:
+        if team is None:
+            continue
+        b = by_team.setdefault(team, {"humans": 0, "ai": 0})
+        if is_human:
+            b["humans"] += 1
+        else:
+            b["ai"] += 1
+    if not by_team:
+        return None
+
+    human_teams = [t for t, c in by_team.items() if c["humans"] > 0]
+    if len(human_teams) <= 1:
+        # Collapse the opposition.
+        if human_teams:
+            ht = human_teams[0]
+            humans = by_team[ht]["humans"]
+            opposition = sum(c["humans"] + c["ai"] for t, c in by_team.items() if t != ht)
+            return f"{humans}v{opposition}"
+        # No humans at all — symmetric AI count.
+        total_ai = sum(c["ai"] for c in by_team.values())
+        return f"{total_ai}v{total_ai}" if total_ai else None
+
+    # Multiple human teams: real PvP, show team sizes directly.
+    sizes = sorted(c["humans"] + c["ai"] for c in by_team.values())
+    return "v".join(str(s) for s in sizes)
+
+
 # Classes in sc2reader's Player.events that are NOT meaningful player actions
 # for APM purposes. Camera moves and the synthetic CommandManagerStateEvent
 # are by far the biggest inflaters versus what SC2's in-game display shows.
@@ -178,19 +221,13 @@ def parse_replay(path: Path) -> ParsedReplay:
         parsed_players.append(pp)
         pid_to_player[pp.player_index] = pp
 
-    # game_format: sort team sizes ascending → "1v7", "2v2", "1v1".
-    if teams_seen:
-        sizes = sorted(teams_seen.values())
-        game_format = "v".join(str(s) for s in sizes)
-    elif parsed_players:
+    game_format = derive_game_format([(pp.team, pp.is_human) for pp in parsed_players])
+    if game_format is None and parsed_players:
+        # Last-ditch fallback when no team info exists at all.
         humans = sum(1 for x in parsed_players if x.is_human)
         ai = len(parsed_players) - humans
-        if ai == 0:
-            game_format = f"{humans}v{humans}"
-        else:
+        if humans >= 1 and ai >= 1:
             game_format = f"{humans}v{ai}"
-    else:
-        game_format = None
 
     for ev in getattr(replay, "tracker_events", []) or []:
         cls_name = ev.__class__.__name__

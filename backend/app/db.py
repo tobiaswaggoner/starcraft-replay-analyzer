@@ -40,8 +40,10 @@ def _migrate(conn: sqlite3.Connection) -> None:
     match_cols = {c["name"] for c in conn.execute("PRAGMA table_info(matches)")}
     if match_cols and "game_format" not in match_cols:
         conn.execute("ALTER TABLE matches ADD COLUMN game_format TEXT")
-    # Backfill game_format for any rows still NULL: derive humans-vs-AI count.
-    # (Proper team-based detection happens at ingest time for new replays.)
+    # Backfill game_format for matches missing it. We can only safely classify
+    # the unambiguous case "1+ humans vs 1+ AI" without team info — for
+    # humans-only matches (e.g. 1v1 vs 2v2 PvP) we leave NULL and let
+    # reparse_apm fill it in once team membership is known.
     conn.executescript(
         """
         UPDATE matches
@@ -55,9 +57,11 @@ def _migrate(conn: sqlite3.Connection) -> None:
             )
             SELECT
                 CASE
-                    WHEN c.ai = 0 THEN CAST(c.humans AS TEXT) || 'v' || CAST(c.humans AS TEXT)
-                    WHEN c.humans = 0 THEN CAST(c.ai AS TEXT) || 'v' || CAST(c.ai AS TEXT)
-                    ELSE CAST(c.humans AS TEXT) || 'v' || CAST(c.ai AS TEXT)
+                    WHEN c.humans >= 1 AND c.ai >= 1
+                        THEN CAST(c.humans AS TEXT) || 'v' || CAST(c.ai AS TEXT)
+                    WHEN c.humans = 0 AND c.ai >= 2
+                        THEN CAST(c.ai AS TEXT) || 'v' || CAST(c.ai AS TEXT)
+                    ELSE NULL
                 END
             FROM counts c WHERE c.match_id = matches.id
         )

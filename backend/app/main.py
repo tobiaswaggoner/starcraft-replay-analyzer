@@ -327,8 +327,27 @@ def list_matches(
         where.append("EXISTS (SELECT 1 FROM players p JOIN player_tags pt ON pt.player_id = p.id "
                      "WHERE p.match_id = m.id AND p.is_me = 1 AND pt.tag_slug = ?)")
         params.append(tag)
+    # Mode filter has to live in SQL (not post-filtering) so it applies BEFORE
+    # the LIMIT/OFFSET pagination — otherwise rare modes (e.g. PvP when most
+    # matches are PvAI) silently fall off the first page.
+    if mode == "PvP":
+        where.append(
+            "EXISTS (SELECT 1 FROM players p WHERE p.match_id = m.id AND p.is_human = 1"
+            " GROUP BY p.match_id HAVING COUNT(DISTINCT p.team) >= 2)"
+        )
+    elif mode == "PvAI":
+        where.append("EXISTS (SELECT 1 FROM players p WHERE p.match_id = m.id AND p.is_human = 1)")
+        where.append(
+            "NOT EXISTS (SELECT 1 FROM players p WHERE p.match_id = m.id AND p.is_human = 1"
+            " GROUP BY p.match_id HAVING COUNT(DISTINCT p.team) >= 2)"
+        )
+    elif mode == "AI":
+        where.append(
+            "NOT EXISTS (SELECT 1 FROM players p WHERE p.match_id = m.id AND p.is_human = 1)"
+        )
 
     sql_where = (" WHERE " + " AND ".join(where)) if where else ""
+    where_params = list(params)  # for the COUNT query
     sql = (
         "SELECT m.* FROM matches m"
         + sql_where
@@ -357,10 +376,10 @@ def list_matches(
             d["player_count_label"] = _player_count_label(players)
             items.append(d)
 
-        if mode:
-            items = [it for it in items if it["mode"] == mode]
-
-        total = conn.execute("SELECT COUNT(*) FROM matches").fetchone()[0]
+        # Total reflects the filtered set, not the whole DB — so the UI
+        # winrate/count line stays consistent with what the user is seeing.
+        count_sql = "SELECT COUNT(*) FROM matches m" + sql_where
+        total = conn.execute(count_sql, where_params).fetchone()[0]
 
     return {"items": items, "total": total, "limit": limit, "offset": offset}
 
