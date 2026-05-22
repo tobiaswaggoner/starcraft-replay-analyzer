@@ -8,6 +8,7 @@ import {
 import RacePill from "../components/RacePill.vue";
 import ResultTag from "../components/ResultTag.vue";
 import TimeseriesChart from "../components/TimeseriesChart.vue";
+import ApmTimeChart from "../components/ApmTimeChart.vue";
 import PlayerTagBlock from "../components/PlayerTagBlock.vue";
 
 const props = defineProps<{ id: string }>();
@@ -94,6 +95,17 @@ const armySeries = computed(() => {
       .filter((r) => r.army_value !== null)
       .map((r) => [r.game_time_seconds, r.army_value!] as [number, number]),
   }));
+});
+
+const apmPlayers = computed(() => {
+  if (!match.value) return [];
+  return match.value.players
+    .filter((p) => p.apm_minutes && p.apm_minutes.length > 0)
+    .map((p) => ({
+      name: shortenAIName(p.name),
+      color: RACE_COLOR[p.race] ?? "#6ea2ff",
+      apm_minutes: p.apm_minutes,
+    }));
 });
 
 const METRIC_ORDER = [
@@ -235,6 +247,9 @@ function fmtTime(seconds: number): string {
     </div>
     <div style="margin-top: 16px;">
       <TimeseriesChart title="Army value" :series="armySeries" />
+    </div>
+    <div v-if="apmPlayers.length > 0" style="margin-top: 16px;">
+      <ApmTimeChart :players="apmPlayers" />
     </div>
 
     <h2 class="section-title">Build order — {{ myPlayer?.name }}</h2>

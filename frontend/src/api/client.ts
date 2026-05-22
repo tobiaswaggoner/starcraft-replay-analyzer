@@ -82,8 +82,17 @@ export interface BuildEvent {
   name: string;
 }
 
+export interface ApmMinute {
+  minute: number;
+  apm: number;
+}
+
 export interface MatchDetail extends Match {
-  players: (Player & { timeseries: TimeseriesRow[]; build_events: BuildEvent[] })[];
+  players: (Player & {
+    timeseries: TimeseriesRow[];
+    build_events: BuildEvent[];
+    apm_minutes: ApmMinute[];
+  })[];
   target_evaluations: TargetEvaluation[];
   tagging_run: TaggingRun | null;
 }

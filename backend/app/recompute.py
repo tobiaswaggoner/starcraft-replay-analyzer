@@ -14,7 +14,7 @@ import sc2reader
 
 from .db import get_conn
 from .metrics import REGISTRY, compute_all
-from .parser import ParsedPlayer, ParsedReplay
+from .parser import ParsedPlayer, ParsedReplay, compute_apm_total, compute_apm_minutes
 
 log = logging.getLogger(__name__)
 
@@ -114,18 +114,29 @@ def reparse_apm() -> dict:
 
         with get_conn() as conn:
             for p in getattr(replay, "players", []) or []:
-                events_count = len(getattr(p, "events", []) or [])
-                apm = events_count / (duration / 60.0) if duration > 0 else None
+                apm = compute_apm_total(p, duration)
+                buckets = compute_apm_minutes(p, duration)
                 pid = getattr(p, "pid", 0) or 0
-                cur = conn.execute(
+                player_row = conn.execute(
+                    "SELECT id FROM players WHERE match_id = ? AND player_index = ?",
+                    (m["id"], pid),
+                ).fetchone()
+                if not player_row:
+                    continue
+                player_id = player_row["id"]
+                conn.execute(
                     """INSERT INTO player_metrics (player_id, metric_name, value)
-                       SELECT pl.id, 'apm', ? FROM players pl
-                       WHERE pl.match_id = ? AND pl.player_index = ?
+                       VALUES (?, 'apm', ?)
                        ON CONFLICT(player_id, metric_name) DO UPDATE SET value = excluded.value""",
-                    (apm, m["id"], pid),
+                    (player_id, apm),
                 )
-                if cur.rowcount > 0:
-                    updated_players += 1
+                conn.execute("DELETE FROM player_apm_minutes WHERE player_id = ?", (player_id,))
+                if buckets:
+                    conn.executemany(
+                        "INSERT INTO player_apm_minutes (player_id, minute, apm) VALUES (?, ?, ?)",
+                        [(player_id, r["minute"], r["apm"]) for r in buckets],
+                    )
+                updated_players += 1
         matches_done += 1
 
     elapsed = (datetime.now() - started).total_seconds()

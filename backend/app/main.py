@@ -384,6 +384,12 @@ def get_match(match_id: int) -> dict[str, Any]:
                     (prow["id"],),
                 )
             ]
+            p["apm_minutes"] = [
+                _row_to_dict(r) for r in conn.execute(
+                    "SELECT minute, apm FROM player_apm_minutes WHERE player_id = ? ORDER BY minute",
+                    (prow["id"],),
+                )
+            ]
             players.append(p)
 
         match["players"] = players

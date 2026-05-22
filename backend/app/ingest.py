@@ -108,6 +108,12 @@ def _insert(conn: sqlite3.Connection, parsed: ParsedReplay) -> int:
                 ],
             )
 
+        if pp.apm_minutes:
+            conn.executemany(
+                "INSERT INTO player_apm_minutes (player_id, minute, apm) VALUES (?, ?, ?)",
+                [(player_id, r["minute"], r["apm"]) for r in pp.apm_minutes],
+            )
+
     return match_id
 
 

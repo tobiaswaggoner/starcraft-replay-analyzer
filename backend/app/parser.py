@@ -45,6 +45,7 @@ class ParsedPlayer:
     is_human: bool = True
     timeseries: list[dict] = field(default_factory=list)
     build_events: list[dict] = field(default_factory=list)
+    apm_minutes: list[dict] = field(default_factory=list)
 
 
 @dataclass
@@ -81,6 +82,48 @@ def _matchup(players: list[ParsedPlayer]) -> str | None:
     return f"{a}v{b}"
 
 
+# Classes in sc2reader's Player.events that are NOT meaningful player actions
+# for APM purposes. Camera moves and the synthetic CommandManagerStateEvent
+# are by far the biggest inflaters versus what SC2's in-game display shows.
+_NON_ACTION_EVENT_CLASSES = {
+    "CameraEvent",
+    "CommandManagerStateEvent",
+    "ChatEvent",
+    "ProgressEvent",
+    "UserOptionsEvent",
+    "DialogControlEvent",
+    "PlayerLeaveEvent",
+}
+
+
+def _is_action_event(ev) -> bool:
+    return ev.__class__.__name__ not in _NON_ACTION_EVENT_CLASSES
+
+
+def compute_apm_minutes(player, duration_seconds: int) -> list[dict]:
+    """Per-minute APM bucket list. Each row: {'minute': i, 'apm': count}."""
+    if duration_seconds <= 0:
+        return []
+    buckets: dict[int, int] = {}
+    for ev in getattr(player, "events", []) or []:
+        if not _is_action_event(ev):
+            continue
+        minute = int(getattr(ev, "second", 0) // 60)
+        buckets[minute] = buckets.get(minute, 0) + 1
+    total_minutes = (duration_seconds + 59) // 60
+    return [{"minute": m, "apm": float(buckets.get(m, 0))} for m in range(total_minutes)]
+
+
+def compute_apm_total(player, duration_seconds: int) -> float | None:
+    """Overall APM: action events / minutes."""
+    if duration_seconds <= 0:
+        return None
+    n = sum(1 for ev in getattr(player, "events", []) or [] if _is_action_event(ev))
+    if n == 0:
+        return None
+    return n / (duration_seconds / 60.0)
+
+
 def parse_replay(path: Path) -> ParsedReplay:
     replay = sc2reader.load_replay(str(path), load_level=4)
 
@@ -97,17 +140,11 @@ def parse_replay(path: Path) -> ParsedReplay:
         race = _normalize_race(_safe(p, "play_race", "pick_race"))
         result = _safe(p, "result")
         toon_handle = _safe(p, "toon_handle")
-        apm = _safe(p, "avg_apm", "apm")
-        try:
-            apm = float(apm) if apm is not None else None
-        except (TypeError, ValueError):
-            apm = None
-        # The sc2reader upstream branch doesn't expose avg_apm; compute it
-        # ourselves from the player's event count / game duration in minutes.
-        if apm is None:
-            events_count = len(getattr(p, "events", []) or [])
-            if events_count > 0 and duration_seconds > 0:
-                apm = events_count / (duration_seconds / 60.0)
+        # We always derive APM ourselves from filtered action events so that
+        # the value matches SC2's in-game display reasonably (excluding camera
+        # moves, synthetic state events, chat, etc.). sc2reader upstream no
+        # longer exposes avg_apm, so we'd have to compute anyway.
+        apm = compute_apm_total(p, duration_seconds)
 
         is_human = bool(_safe(p, "is_human", default=True))
         # Fallback: sc2reader names AI players "A.I. 1 (Very Hard)" etc.
@@ -129,6 +166,7 @@ def parse_replay(path: Path) -> ParsedReplay:
             mmr=None,
             apm=apm,
             is_human=is_human,
+            apm_minutes=compute_apm_minutes(p, duration_seconds),
         )
         parsed_players.append(pp)
         pid_to_player[pp.player_index] = pp

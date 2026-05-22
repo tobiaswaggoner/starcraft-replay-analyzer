@@ -111,6 +111,13 @@ CREATE TABLE IF NOT EXISTS training_targets (
     created_at   TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
+CREATE TABLE IF NOT EXISTS player_apm_minutes (
+    player_id INTEGER NOT NULL REFERENCES players(id) ON DELETE CASCADE,
+    minute    INTEGER NOT NULL,
+    apm       REAL    NOT NULL,
+    PRIMARY KEY (player_id, minute)
+);
+
 CREATE TABLE IF NOT EXISTS player_timeseries (
     id                  INTEGER PRIMARY KEY AUTOINCREMENT,
     player_id           INTEGER NOT NULL REFERENCES players(id) ON DELETE CASCADE,
