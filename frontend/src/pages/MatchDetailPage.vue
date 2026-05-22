@@ -2,14 +2,18 @@
 import { computed, onMounted, ref, watch } from "vue";
 import {
   api, formatDate, formatDuration, formatMetric, metricLabel,
-  shortenAIName, targetSummary, targetScopeChips, type MatchDetail,
+  shortenAIName, targetSummary, targetScopeChips,
+  type MatchDetail, type FacetTag,
 } from "../api/client";
 import RacePill from "../components/RacePill.vue";
 import ResultTag from "../components/ResultTag.vue";
 import TimeseriesChart from "../components/TimeseriesChart.vue";
+import PlayerTagBlock from "../components/PlayerTagBlock.vue";
 
 const props = defineProps<{ id: string }>();
 const match = ref<MatchDetail | null>(null);
+const vocab = ref<FacetTag[]>([]);
+const retagging = ref(false);
 
 const RACE_COLOR: Record<string, string> = {
   Terran: "#5aa9ff",
@@ -18,10 +22,38 @@ const RACE_COLOR: Record<string, string> = {
 };
 
 async function load() {
-  match.value = await api.getMatch(Number(props.id));
+  const [m, facets] = await Promise.all([api.getMatch(Number(props.id)), api.facets()]);
+  match.value = m;
+  vocab.value = facets.tags;
 }
 onMounted(load);
 watch(() => props.id, load);
+
+async function retag() {
+  if (!match.value) return;
+  retagging.value = true;
+  try {
+    await api.tagMatch(match.value.id, true);
+    await load();
+  } catch (e: any) {
+    window.alert(`Tagging failed: ${e.message ?? e}`);
+  } finally {
+    retagging.value = false;
+  }
+}
+
+async function tagFirstTime() {
+  if (!match.value) return;
+  retagging.value = true;
+  try {
+    await api.tagMatch(match.value.id, false);
+    await load();
+  } catch (e: any) {
+    window.alert(`Tagging failed: ${e.message ?? e}`);
+  } finally {
+    retagging.value = false;
+  }
+}
 
 const myPlayer = computed(() => {
   if (!match.value) return undefined;
@@ -98,12 +130,44 @@ function fmtTime(seconds: number): string {
       </h1>
       <div class="meta">
         <span class="mode-tag" :class="`mode-${match.mode}`">{{ match.mode }}</span>
-        <span class="dot">·</span><span>{{ match.player_count_label }}</span>
+        <span class="dot">·</span><span>{{ match.game_format ?? match.player_count_label }}</span>
         <span class="dot">·</span><span>{{ match.map_name }}</span>
         <span class="dot">·</span><span>{{ formatDate(match.played_at) }}</span>
         <span class="dot">·</span><span class="mono">{{ formatDuration(match.duration_seconds) }}</span>
         <span v-if="match.matchup" class="dot">·</span><span v-if="match.matchup">{{ match.matchup }}</span>
         <span v-if="match.game_version" class="dot">·</span><span v-if="match.game_version">{{ match.game_version }}</span>
+      </div>
+      <div v-if="match.tagging_run?.match_summary" class="match-summary">
+        <span class="match-summary-quote">“{{ match.tagging_run.match_summary }}”</span>
+        <span class="match-summary-meta mono">— {{ match.tagging_run.model }}</span>
+      </div>
+    </div>
+
+    <div class="match-tags-section">
+      <div class="match-tags-head">
+        <h2 class="section-title" style="margin: 0;">Tags</h2>
+        <div style="display: flex; gap: 8px;">
+          <button v-if="!match.tagging_run" class="btn primary" :disabled="retagging" @click="tagFirstTime">
+            {{ retagging ? "Tagging…" : "Auto-tag" }}
+          </button>
+          <button v-else class="btn" :disabled="retagging" @click="retag">
+            {{ retagging ? "Retagging…" : "Retag" }}
+          </button>
+        </div>
+      </div>
+      <div class="player-tag-blocks">
+        <PlayerTagBlock
+          v-for="p in match.players"
+          :key="p.id"
+          :player-id="p.id"
+          :player-name="shortenAIName(p.name)"
+          :player-race="p.race"
+          :is-human="p.is_human === 1"
+          :result="p.result"
+          :tags="p.tags"
+          :vocab="vocab"
+          @changed="load"
+        />
       </div>
     </div>
 

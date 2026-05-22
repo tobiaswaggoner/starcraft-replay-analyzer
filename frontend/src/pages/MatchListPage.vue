@@ -9,6 +9,7 @@ import {
 } from "../api/client";
 import RacePill from "../components/RacePill.vue";
 import ResultTag from "../components/ResultTag.vue";
+import TagChip from "../components/TagChip.vue";
 
 const store = useMatchesStore();
 const router = useRouter();
@@ -22,6 +23,16 @@ const opponentsFor = (m: Match) => opponentsOf(m.players, myFor(m));
 
 function opponentLabel(m: Match): string {
   return opponentsFor(m).map((p) => shortenAIName(p.name)).join(", ");
+}
+
+function topTags(m: Match, max = 3) {
+  const me = myFor(m);
+  if (!me || !me.tags) return [];
+  return me.tags.slice(0, max);
+}
+function extraTagCount(m: Match, max = 3): number {
+  const me = myFor(m);
+  return Math.max(0, (me?.tags?.length ?? 0) - max);
 }
 
 const summaryStats = computed(() => {
@@ -59,6 +70,11 @@ function open(id: number) {
       <option value="">All modes</option>
       <option v-for="m in store.facets.modes" :key="m" :value="m">{{ m }}</option>
     </select>
+    <select class="filter-select" :value="store.filters.game_format ?? ''"
+            @change="store.setFilter('game_format', ($event.target as HTMLSelectElement).value)">
+      <option value="">All formats</option>
+      <option v-for="f in store.facets.game_formats" :key="f" :value="f">{{ f }}</option>
+    </select>
     <select class="filter-select" :value="store.filters.matchup ?? ''"
             @change="store.setFilter('matchup', ($event.target as HTMLSelectElement).value)">
       <option value="">All matchups</option>
@@ -80,6 +96,13 @@ function open(id: number) {
       <option value="">All maps</option>
       <option v-for="m in store.facets.maps" :key="m" :value="m">{{ m }}</option>
     </select>
+    <select class="filter-select" :value="store.filters.tag ?? ''"
+            @change="store.setFilter('tag', ($event.target as HTMLSelectElement).value)">
+      <option value="">All tags</option>
+      <option v-for="t in store.facets.tags.filter(t => t.usage_count > 0)" :key="t.slug" :value="t.slug">
+        {{ t.name }} ({{ t.usage_count }})
+      </option>
+    </select>
   </div>
 
   <div v-if="store.loading" class="empty">Loading…</div>
@@ -94,10 +117,10 @@ function open(id: number) {
       <div>Date</div>
       <div>Versus</div>
       <div>Opponent</div>
-      <div>Mode</div>
+      <div>Format</div>
+      <div>Tags</div>
       <div>Result</div>
       <div>Map</div>
-      <div>Duration</div>
       <div>APM</div>
     </div>
     <div v-for="m in store.items" :key="m.id" class="match-row" @click="open(m.id)">
@@ -108,15 +131,15 @@ function open(id: number) {
         <template v-if="opponentsFor(m).length === 1">
           <RacePill :race="opponentsFor(m)[0].race" />
         </template>
-        <span v-else class="mono cell-num-muted">{{ m.player_count_label }}</span>
       </div>
       <div class="cell-opp" :title="opponentLabel(m)">{{ opponentLabel(m) || '—' }}</div>
-      <div>
-        <span class="mode-tag" :class="`mode-${m.mode}`">{{ m.mode }}</span>
+      <div class="cell-format mono">{{ m.game_format ?? m.player_count_label }}</div>
+      <div class="cell-tags">
+        <TagChip v-for="t in topTags(m)" :key="t.tag_slug" :name="t.name" :color="t.color" size="sm" />
+        <span v-if="extraTagCount(m) > 0" class="tag mono" style="font-size: 10px;">+{{ extraTagCount(m) }}</span>
       </div>
       <div><ResultTag :result="myFor(m)?.result ?? null" /></div>
       <div class="cell-map" :title="m.map_name">{{ m.map_name }}</div>
-      <div class="cell-num">{{ formatDuration(m.duration_seconds) }}</div>
       <div class="cell-num">{{ formatMetric('apm', myFor(m)?.metrics?.apm) }}</div>
     </div>
   </div>

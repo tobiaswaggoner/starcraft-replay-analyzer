@@ -1,3 +1,28 @@
+export type TagCategory = "strategy" | "tech" | "build" | "tempo" | "outcome";
+export type TagSource = "llm" | "manual";
+
+export interface Tag {
+  slug: string;
+  name: string;
+  category: TagCategory;
+  description: string | null;
+  applies_to_races: string[] | null;
+  color: string | null;
+  created_by: "system" | "user";
+  created_at: string;
+}
+
+export interface PlayerTag {
+  tag_slug: string;
+  source: TagSource;
+  confidence: number | null;
+  reasoning: string | null;
+  model: string | null;
+  name: string;
+  category: TagCategory;
+  color: string | null;
+}
+
 export interface Player {
   id: number;
   match_id: number;
@@ -10,9 +35,17 @@ export interface Player {
   is_me: 0 | 1;
   is_human: 0 | 1;
   metrics: Record<string, number | null>;
+  tags: PlayerTag[];
 }
 
 export type MatchMode = "PvP" | "PvAI" | "AI";
+
+export interface TaggingRun {
+  model: string;
+  prompt_version: string;
+  match_summary: string | null;
+  created_at: string;
+}
 
 export interface Match {
   id: number;
@@ -26,6 +59,7 @@ export interface Match {
   game_type: string | null;
   matchup: string | null;
   region: string | null;
+  game_format: string | null;
   mode: MatchMode;
   player_count_label: string;
   players: Player[];
@@ -51,6 +85,7 @@ export interface BuildEvent {
 export interface MatchDetail extends Match {
   players: (Player & { timeseries: TimeseriesRow[]; build_events: BuildEvent[] })[];
   target_evaluations: TargetEvaluation[];
+  tagging_run: TaggingRun | null;
 }
 
 export type Operator = ">=" | "<=" | "==";
@@ -96,12 +131,30 @@ export interface TrendPoint {
   value: number | null;
 }
 
+export interface FacetTag {
+  slug: string;
+  name: string;
+  category: TagCategory;
+  color: string | null;
+  usage_count: number;
+}
+
 export interface Facets {
   maps: string[];
   matchups: string[];
+  game_formats: string[];
   races: string[];
   results: string[];
   modes: MatchMode[];
+  tags: FacetTag[];
+}
+
+export interface AppSettings {
+  tagging_model: string;
+  auto_tag_on_ingest: boolean;
+  openrouter_api_key_masked: string;
+  openrouter_api_key_set: boolean;
+  available_models: { id: string; label: string; tier: string }[];
 }
 
 async function get<T>(path: string): Promise<T> {
@@ -148,6 +201,28 @@ export const api = {
       `/api/matches${qs ? `?${qs}` : ""}`,
     );
   },
+  getSettings: () => get<AppSettings>("/api/settings"),
+  patchSettings: (body: Partial<{ openrouter_api_key: string; tagging_model: string; auto_tag_on_ingest: boolean }>) =>
+    patch<AppSettings>("/api/settings", body),
+  testConnection: () => post<{ ok: boolean; model: string; response?: string; error?: string }>("/api/settings/test-connection"),
+  listTagVocab: () => get<{ items: Tag[] }>("/api/tags"),
+  createTagVocab: (t: Partial<Tag> & { slug: string; name: string; category: TagCategory }) =>
+    post<Tag>("/api/tags", t),
+  updateTagVocab: (slug: string, t: Partial<Tag>) => patch<Tag>(`/api/tags/${slug}`, t),
+  deleteTagVocab: (slug: string) => del<{ ok: true }>(`/api/tags/${slug}`),
+  resetSeedTags: () => post<{ imported: number }>("/api/tags/reset-seed"),
+  tagMatch: (id: number, retag = false) =>
+    post<{ status: string; match_id: number; model: string; tags_written?: number; summary?: string }>(
+      `/api/matches/${id}/tag${retag ? "?retag=true" : ""}`,
+    ),
+  runBatchTagging: (limit?: number) =>
+    post<{ candidates: number; tagged: number; errors: { match_id: number; error: string }[] }>(
+      `/api/tagging/run${limit ? `?limit=${limit}` : ""}`,
+    ),
+  addPlayerTag: (playerId: number, tagSlug: string) =>
+    post<{ player_id: number; tag_slug: string; source: string }>(`/api/players/${playerId}/tags`, { tag_slug: tagSlug }),
+  removePlayerTag: (playerId: number, tagSlug: string, source: string = "manual") =>
+    del<{ ok: true }>(`/api/players/${playerId}/tags/${tagSlug}?source=${source}`),
   getMatch: (id: number) => get<MatchDetail>(`/api/matches/${id}`),
   trend: (metric: string, params: Record<string, string | undefined> = {}) => {
     const q = new URLSearchParams();

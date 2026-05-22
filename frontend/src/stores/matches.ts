@@ -6,7 +6,10 @@ interface State {
   total: number;
   loading: boolean;
   facets: Facets;
-  filters: { matchup?: string; race?: string; result?: string; map_name?: string; mode?: string };
+  filters: {
+    matchup?: string; race?: string; result?: string; map_name?: string;
+    mode?: string; tag?: string; game_format?: string;
+  };
 }
 
 export const useMatchesStore = defineStore("matches", {
@@ -14,7 +17,7 @@ export const useMatchesStore = defineStore("matches", {
     items: [],
     total: 0,
     loading: false,
-    facets: { maps: [], matchups: [], races: [], results: [], modes: [] },
+    facets: { maps: [], matchups: [], game_formats: [], races: [], results: [], modes: [], tags: [] },
     filters: {},
   }),
   actions: {

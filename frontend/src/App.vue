@@ -24,6 +24,9 @@ onMounted(async () => {
       <router-link to="/targets" class="nav-link">
         <span>Targets</span>
       </router-link>
+      <router-link to="/tags" class="nav-link">
+        <span>Tags</span>
+      </router-link>
       <router-link to="/settings" class="nav-link">
         <span>Settings</span>
       </router-link>
