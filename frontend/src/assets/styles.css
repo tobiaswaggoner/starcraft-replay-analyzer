@@ -1087,9 +1087,12 @@ select.text-input {
   margin-top: 6px;
 }
 
+/* Open the tag picker upward so it overlays the form fields above the
+   input rather than pushing the modal body downward (which created a
+   scrollbar-in-scrollbar effect). */
 .tag-combo-dropdown {
   position: absolute;
-  top: calc(100% + 4px);
+  bottom: calc(100% + 4px);
   left: 0;
   right: 0;
   max-height: 240px;
@@ -1098,7 +1101,7 @@ select.text-input {
   border: 1px solid var(--border-strong);
   border-radius: var(--radius-sm);
   box-shadow: var(--shadow-md);
-  z-index: 60;
+  z-index: 70;
 }
 
 .tag-combo-option {
