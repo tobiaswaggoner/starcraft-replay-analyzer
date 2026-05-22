@@ -141,6 +141,8 @@ function fmtTime(seconds: number): string {
       ← Back to matches
     </router-link>
 
+    <div class="match-detail-layout" :class="{ 'side-collapsed': buildOrderCollapsed }">
+      <div class="match-detail-main">
     <div class="match-detail-header">
       <h1>
         <span v-for="(p, i) in match.players" :key="p.id">
@@ -260,44 +262,58 @@ function fmtTime(seconds: number): string {
     <div v-if="apmPlayers.length > 0" style="margin-top: 16px;">
       <ApmTimeChart :players="apmPlayers" />
     </div>
+      </div><!-- /match-detail-main -->
 
-    <div class="build-order-wrap">
-      <div class="section-title-row">
-        <h2 class="section-title" style="margin: 0;">
-          Build order — {{ myPlayer ? shortenAIName(myPlayer.name) : '' }}
-        </h2>
-        <button class="collapse-btn" @click="buildOrderCollapsed = !buildOrderCollapsed">
-          {{ buildOrderCollapsed ? "▶ Show" : "▼ Hide" }}
-        </button>
-      </div>
-      <div v-show="!buildOrderCollapsed" class="build-order">
-        <div v-if="filteredBuildEvents.length === 0" style="color: var(--text-muted); padding: 6px 0; font-size: 13px;">
-          No build events after 00:00.
-        </div>
-        <div
-          v-for="(ev, i) in filteredBuildEvents"
-          :key="i"
-          class="build-row"
+      <aside class="match-detail-side">
+        <button
+          v-if="buildOrderCollapsed"
+          class="side-rail"
+          @click="buildOrderCollapsed = false"
+          aria-label="Show build order"
         >
-          <span
-            class="build-cat-dot"
-            :style="{ background: BUILD_CATEGORY_COLORS[categorizeBuildEvent(ev.event_type, ev.name)] }"
-            :title="BUILD_CATEGORY_LABELS[categorizeBuildEvent(ev.event_type, ev.name)]"
-          />
-          <div class="build-time mono">{{ fmtTime(ev.game_time_seconds) }}</div>
-          <div class="build-supply mono">{{ ev.supply ?? '' }}</div>
-          <div class="build-name">{{ ev.name }}</div>
-          <span
-            class="build-cat-tag"
-            :style="{
-              color: BUILD_CATEGORY_COLORS[categorizeBuildEvent(ev.event_type, ev.name)],
-              borderColor: BUILD_CATEGORY_COLORS[categorizeBuildEvent(ev.event_type, ev.name)] + '55',
-            }"
-          >
-            {{ BUILD_CATEGORY_LABELS[categorizeBuildEvent(ev.event_type, ev.name)] }}
-          </span>
-        </div>
-      </div>
-    </div>
+          <span class="side-rail-chevron">◀</span>
+          <span class="side-rail-label">Build order</span>
+        </button>
+        <div v-else class="build-order-card">
+          <div class="build-order-card-head">
+            <div class="build-order-card-title">
+              Build order
+              <span v-if="myPlayer" class="build-order-card-sub">— {{ shortenAIName(myPlayer.name) }}</span>
+            </div>
+            <button class="collapse-btn" @click="buildOrderCollapsed = true" aria-label="Hide build order">
+              ▶
+            </button>
+          </div>
+          <div class="build-order-card-body">
+            <div v-if="filteredBuildEvents.length === 0" style="color: var(--text-muted); padding: 8px; font-size: 13px;">
+              No build events after 00:00.
+            </div>
+            <div
+              v-for="(ev, i) in filteredBuildEvents"
+              :key="i"
+              class="build-row"
+            >
+              <span
+                class="build-cat-dot"
+                :style="{ background: BUILD_CATEGORY_COLORS[categorizeBuildEvent(ev.event_type, ev.name)] }"
+                :title="BUILD_CATEGORY_LABELS[categorizeBuildEvent(ev.event_type, ev.name)]"
+              />
+              <div class="build-time mono">{{ fmtTime(ev.game_time_seconds) }}</div>
+              <div class="build-supply mono">{{ ev.supply ?? '' }}</div>
+              <div class="build-name">{{ ev.name }}</div>
+              <span
+                class="build-cat-tag"
+                :style="{
+                  color: BUILD_CATEGORY_COLORS[categorizeBuildEvent(ev.event_type, ev.name)],
+                  borderColor: BUILD_CATEGORY_COLORS[categorizeBuildEvent(ev.event_type, ev.name)] + '55',
+                }"
+              >
+                {{ BUILD_CATEGORY_LABELS[categorizeBuildEvent(ev.event_type, ev.name)] }}
+              </span>
+            </div><!-- /build-row -->
+          </div><!-- /build-order-card-body -->
+        </div><!-- /build-order-card -->
+      </aside><!-- /match-detail-side -->
+    </div><!-- /match-detail-layout -->
   </div>
 </template>
