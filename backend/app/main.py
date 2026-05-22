@@ -91,21 +91,8 @@ def _player_with_metrics(conn, player_row, include_tags: bool = True) -> dict[st
 
 
 def _compute_mode(players: list[dict]) -> str:
-    humans = [p for p in players if p.get("is_human")]
-    if not humans:
-        return "AI"
-    if len(humans) == 1:
-        return "PvAI"
-    # Multiple humans. PvP requires at least one human on a different team
-    # than another human. Otherwise it's a coop game (PvAI) even with two+
-    # humans (e.g. 2v2 vs AI).
-    teams = {p.get("team") for p in humans if p.get("team") is not None}
-    if len(teams) >= 2:
-        return "PvP"
-    if len(teams) == 1:
-        return "PvAI"
-    # No team info recorded — conservative default for legacy data.
-    return "PvP"
+    from .parser import derive_mode
+    return derive_mode([(p.get("team"), bool(p.get("is_human"))) for p in players])
 
 
 def _player_count_label(players: list[dict]) -> str:

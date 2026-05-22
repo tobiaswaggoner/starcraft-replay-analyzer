@@ -83,6 +83,26 @@ def _matchup(players: list[ParsedPlayer]) -> str | None:
     return f"{a}v{b}"
 
 
+def derive_mode(player_team_human: list[tuple[int | None, bool]]) -> str:
+    """Classify a match as 'PvP' / 'PvAI' / 'AI' from (team, is_human) tuples.
+
+    PvP requires that humans are spread across two or more distinct teams.
+    A single human team (with humans plus optional AI on other teams) is
+    PvAI/coop, regardless of how many humans there are.
+    """
+    humans = [(t, h) for (t, h) in player_team_human if h]
+    if not humans:
+        return "AI"
+    if len(humans) == 1:
+        return "PvAI"
+    teams = {t for (t, _) in humans if t is not None}
+    if len(teams) >= 2:
+        return "PvP"
+    if len(teams) == 1:
+        return "PvAI"
+    return "PvP"  # no team info — conservative legacy default
+
+
 def derive_game_format(player_team_human: list[tuple[int | None, bool]]) -> str | None:
     """Compute '1v1' / '2v2' / '1v7' from per-player (team, is_human) tuples.
 

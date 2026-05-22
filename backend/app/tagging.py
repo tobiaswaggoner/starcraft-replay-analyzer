@@ -48,17 +48,26 @@ def _player_block(player: dict, build_window_seconds: int = 300) -> str:
         f"{k}={_fmt(v)}" for k, v in metrics.items() if v is not None
     ) or "none"
     events = player.get("build_events", [])
-    events = [e for e in events if e["game_time_seconds"] <= build_window_seconds]
+    # Skip events at second 0 — these are starting units (12 workers, the
+    # main base, etc.) the player did not actually build. Including them
+    # leads the LLM to spurious tags like "Nexus First".
+    events = [
+        e for e in events
+        if e["game_time_seconds"] > 0 and e["game_time_seconds"] <= build_window_seconds
+    ]
     bo = ", ".join(
         f"{_fmt_time(e['game_time_seconds'])} {e['name']}"
         + (f" ({e['supply']})" if e.get("supply") is not None else "")
         for e in events[:60]
     ) or "(no events in first 5 min)"
+    team = player.get("team")
+    team_str = f", team {team}" if team is not None else ""
     return (
         f"Player {player['player_index']} — {player['name']} ({player['race']}, "
-        f"{'AI' if not player.get('is_human') else 'human'}, result={player.get('result') or '?'})\n"
+        f"{'AI' if not player.get('is_human') else 'human'}{team_str}, "
+        f"result={player.get('result') or '?'})\n"
         f"  Metrics: {metric_lines}\n"
-        f"  Build (first {build_window_seconds//60} min): {bo}"
+        f"  Build (first {build_window_seconds//60} min, starting units excluded): {bo}"
     )
 
 
@@ -94,6 +103,10 @@ def _fmt_time(seconds: float) -> str:
 
 def build_prompt(match: dict, players: list[dict], vocab: list[dict]) -> tuple[str, str]:
     """Returns (system_prompt, user_prompt)."""
+    from .parser import derive_mode
+
+    mode = derive_mode([(p.get("team"), bool(p.get("is_human"))) for p in players])
+
     system = (
         "You are a StarCraft 2 replay analyst. You classify each player's strategy "
         "in a single match using a controlled tag vocabulary. You always respond "
@@ -104,15 +117,34 @@ def build_prompt(match: dict, players: list[dict], vocab: list[dict]) -> tuple[s
         "metrics. Prefer fewer, high-quality tags over many speculative ones — "
         "typically 2–5 tags per player across categories (strategy, tech, build, "
         "tempo, outcome). If the game ended very early or you have insufficient "
-        "evidence, return the 'gg-out-early' tag only."
+        "evidence, return the 'gg-out-early' tag only.\n\n"
+        "Important: the build order lists events that occurred AFTER game start. "
+        "Every player begins with their main base building and ~12 workers — do "
+        "NOT infer 'nexus-first', 'cc-first', or 'hatch-first' from those; only "
+        "tag those builds if the player BUILDS A NEW main-base building before "
+        "any production structure. Also: AI opponents in custom maps may use "
+        "trivially predictable behaviour; tag conservatively for them."
     )
 
+    duration_s = match.get("duration_seconds", 0) or 0
+    duration_str = f"{duration_s // 60}:{duration_s % 60:02d}"
+
     player_blocks = "\n\n".join(_player_block(p) for p in players)
+
+    team_layout = ", ".join(
+        f"P{p['player_index']}({p.get('race', '?')}, "
+        f"{'AI' if not p.get('is_human') else 'human'}, team {p.get('team', '?')})"
+        for p in players
+    )
+
     user = (
-        f"Match: {match.get('matchup') or match.get('game_format', '?')} on "
-        f"{match.get('map_name')} ({match.get('game_format', '?')}, "
-        f"{match.get('duration_seconds', 0)//60}:{match.get('duration_seconds', 0)%60:02d}, "
-        f"game_version={match.get('game_version') or '?'}).\n\n"
+        f"Match context:\n"
+        f"  Map: {match.get('map_name')}\n"
+        f"  Mode: {mode} ({match.get('game_format') or '?'})\n"
+        f"  Matchup: {match.get('matchup') or 'n/a'}\n"
+        f"  Duration: {duration_str}\n"
+        f"  Game version: {match.get('game_version') or '?'}\n"
+        f"  Players: {team_layout}\n\n"
         f"Vocabulary (slug — applicable races — description):\n{_vocab_block(vocab)}\n\n"
         f"Players:\n\n{player_blocks}\n\n"
         "Return JSON with this exact shape:\n"
@@ -249,7 +281,8 @@ def tag_match(match_id: int, retag: bool = False) -> dict[str, Any]:
                 dict(r) for r in conn.execute(
                     "SELECT game_time_seconds, supply, event_type, name "
                     "FROM build_events WHERE player_id = ? "
-                    "AND game_time_seconds <= 300 ORDER BY game_time_seconds",
+                    "AND game_time_seconds > 0 AND game_time_seconds <= 300 "
+                    "ORDER BY game_time_seconds",
                     (prow["id"],),
                 )
             ]
