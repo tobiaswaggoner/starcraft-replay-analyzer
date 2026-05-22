@@ -74,7 +74,8 @@ const filteredVocab = computed(() => {
   return tagVocab.value
     .filter((t) => !selectedTagSet.value.has(t.slug))
     .filter((t) => q === "" || t.name.toLowerCase().includes(q) || t.slug.includes(q))
-    .slice(0, 20);
+    .slice()
+    .sort((a, b) => a.name.localeCompare(b.name));
 });
 
 function addTag(slug: string) {
