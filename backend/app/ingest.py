@@ -63,10 +63,10 @@ def _insert(conn: sqlite3.Connection, parsed: ParsedReplay) -> int:
         is_me = 1 if pp.name in my_names else 0
         cur = conn.execute(
             """
-            INSERT INTO players (match_id, player_index, toon_handle, name, race, result, mmr, is_me, is_human)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO players (match_id, player_index, toon_handle, name, race, result, mmr, is_me, is_human, team)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
-            (match_id, pp.player_index, pp.toon_handle, pp.name, pp.race, pp.result, pp.mmr, is_me, 1 if pp.is_human else 0),
+            (match_id, pp.player_index, pp.toon_handle, pp.name, pp.race, pp.result, pp.mmr, is_me, 1 if pp.is_human else 0, pp.team),
         )
         player_id = cur.lastrowid
 

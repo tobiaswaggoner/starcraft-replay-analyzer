@@ -43,6 +43,7 @@ class ParsedPlayer:
     mmr: int | None
     apm: float | None
     is_human: bool = True
+    team: int | None = None
     timeseries: list[dict] = field(default_factory=list)
     build_events: list[dict] = field(default_factory=list)
     apm_minutes: list[dict] = field(default_factory=list)
@@ -152,10 +153,15 @@ def parse_replay(path: Path) -> ParsedReplay:
         if name.startswith("A.I."):
             is_human = False
 
-        # Capture team membership for game_format derivation.
-        team_id = _safe(p, "team_id", "team", default=None)
-        if team_id is not None:
-            teams_seen[int(team_id)] = teams_seen.get(int(team_id), 0) + 1
+        # Capture team membership for game_format derivation + mode classification.
+        team_raw = _safe(p, "team_id", "team", default=None)
+        team_int: int | None = None
+        if team_raw is not None:
+            try:
+                team_int = int(team_raw)
+                teams_seen[team_int] = teams_seen.get(team_int, 0) + 1
+            except (TypeError, ValueError):
+                team_int = None
 
         pp = ParsedPlayer(
             player_index=getattr(p, "pid", 0) or 0,
@@ -166,6 +172,7 @@ def parse_replay(path: Path) -> ParsedReplay:
             mmr=None,
             apm=apm,
             is_human=is_human,
+            team=team_int,
             apm_minutes=compute_apm_minutes(p, duration_seconds),
         )
         parsed_players.append(pp)

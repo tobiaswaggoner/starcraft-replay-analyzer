@@ -30,7 +30,8 @@ CREATE TABLE IF NOT EXISTS players (
     result          TEXT,
     mmr             INTEGER,
     is_me           INTEGER NOT NULL DEFAULT 0,
-    is_human        INTEGER NOT NULL DEFAULT 1
+    is_human        INTEGER NOT NULL DEFAULT 1,
+    team            INTEGER
 );
 
 CREATE INDEX IF NOT EXISTS idx_players_match ON players(match_id);

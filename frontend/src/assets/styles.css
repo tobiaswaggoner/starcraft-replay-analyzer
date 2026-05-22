@@ -1192,12 +1192,26 @@ select.text-input {
   margin-left: 8px;
 }
 
-.match-tags-section {
+.tags-targets-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(380px, 1fr));
+  gap: 16px;
+  margin-bottom: 24px;
+  align-items: start;
+}
+
+.match-tags-section,
+.match-targets-section {
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius);
   padding: 16px 20px;
-  margin-bottom: 24px;
+}
+
+.target-eval-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
 }
 
 .match-tags-head {

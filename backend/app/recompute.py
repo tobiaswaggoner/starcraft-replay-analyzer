@@ -124,6 +124,19 @@ def reparse_apm() -> dict:
                 if not player_row:
                     continue
                 player_id = player_row["id"]
+                # Backfill team while we're here (same data, same cost).
+                team_raw = getattr(p, "team_id", None) or getattr(p, "team", None)
+                team_int: int | None = None
+                try:
+                    if team_raw is not None:
+                        team_int = int(team_raw)
+                except (TypeError, ValueError):
+                    pass
+                if team_int is not None:
+                    conn.execute(
+                        "UPDATE players SET team = ? WHERE id = ?",
+                        (team_int, player_id),
+                    )
                 conn.execute(
                     """INSERT INTO player_metrics (player_id, metric_name, value)
                        VALUES (?, 'apm', ?)

@@ -29,6 +29,9 @@ def _migrate(conn: sqlite3.Connection) -> None:
     player_cols = {c["name"] for c in conn.execute("PRAGMA table_info(players)")}
     if player_cols and "is_human" not in player_cols:
         conn.execute("ALTER TABLE players ADD COLUMN is_human INTEGER NOT NULL DEFAULT 1")
+    # Team membership column (added for correct PvP/PvAI/Coop classification).
+    if player_cols and "team" not in player_cols:
+        conn.execute("ALTER TABLE players ADD COLUMN team INTEGER")
     # Idempotent: reclassify AI-named players whose is_human flag is still default.
     # Cheap to run on every startup; only updates rows that match the AI name pattern.
     conn.execute("UPDATE players SET is_human = 0 WHERE is_human = 1 AND name LIKE 'A.I.%'")

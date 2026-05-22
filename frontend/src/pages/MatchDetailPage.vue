@@ -175,31 +175,66 @@ function fmtTime(seconds: number): string {
       </div>
     </div>
 
-    <div class="match-tags-section">
-      <div class="match-tags-head">
-        <h2 class="section-title" style="margin: 0;">Tags</h2>
-        <div style="display: flex; gap: 8px;">
-          <button v-if="!match.tagging_run" class="btn primary" :disabled="retagging" @click="tagFirstTime">
-            {{ retagging ? "Tagging…" : "Auto-tag" }}
-          </button>
-          <button v-else class="btn" :disabled="retagging" @click="retag">
-            {{ retagging ? "Retagging…" : "Retag" }}
-          </button>
+    <div class="tags-targets-grid">
+      <div class="match-tags-section">
+        <div class="match-tags-head">
+          <h2 class="section-title" style="margin: 0;">Tags</h2>
+          <div style="display: flex; gap: 8px;">
+            <button v-if="!match.tagging_run" class="btn primary" :disabled="retagging" @click="tagFirstTime">
+              {{ retagging ? "Tagging…" : "Auto-tag" }}
+            </button>
+            <button v-else class="btn" :disabled="retagging" @click="retag">
+              {{ retagging ? "Retagging…" : "Retag" }}
+            </button>
+          </div>
+        </div>
+        <div class="player-tag-blocks">
+          <PlayerTagBlock
+            v-for="p in match.players"
+            :key="p.id"
+            :player-id="p.id"
+            :player-name="shortenAIName(p.name)"
+            :player-race="p.race"
+            :is-human="p.is_human === 1"
+            :result="p.result"
+            :tags="p.tags"
+            :vocab="vocab"
+            @changed="load"
+          />
         </div>
       </div>
-      <div class="player-tag-blocks">
-        <PlayerTagBlock
-          v-for="p in match.players"
-          :key="p.id"
-          :player-id="p.id"
-          :player-name="shortenAIName(p.name)"
-          :player-race="p.race"
-          :is-human="p.is_human === 1"
-          :result="p.result"
-          :tags="p.tags"
-          :vocab="vocab"
-          @changed="load"
-        />
+
+      <div v-if="match.target_evaluations.length > 0" class="match-targets-section">
+        <h2 class="section-title" style="margin: 0 0 12px;">Training targets</h2>
+        <div class="target-eval-list">
+          <div
+            v-for="ev in match.target_evaluations"
+            :key="ev.target.id"
+            class="target-eval"
+            :class="{ pass: ev.pass === true, fail: ev.pass === false, na: ev.pass === null }"
+          >
+            <div class="target-eval-head">
+              <div class="target-eval-icon">
+                <span v-if="ev.pass === true">✓</span>
+                <span v-else-if="ev.pass === false">✗</span>
+                <span v-else>—</span>
+              </div>
+              <div class="target-eval-name">
+                <div class="target-eval-title">{{ ev.target.name }}</div>
+                <div class="target-eval-rule mono">{{ targetSummary(ev.target) }}</div>
+              </div>
+              <div class="target-eval-value mono">
+                <div class="big">{{ ev.value !== null ? formatMetric(ev.target.metric_name, ev.value) : 'N/A' }}</div>
+                <div v-if="ev.delta !== null" class="delta">
+                  {{ ev.delta >= 0 ? '+' : '' }}{{ formatMetric(ev.target.metric_name, ev.delta) }}
+                </div>
+              </div>
+            </div>
+            <div class="target-eval-scope">
+              <span v-for="c in targetScopeChips(ev.target)" :key="c" class="tag">{{ c }}</span>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -226,39 +261,6 @@ function fmtTime(seconds: number): string {
         </div>
       </div>
     </div>
-
-    <template v-if="match.target_evaluations.length > 0">
-      <h2 class="section-title">Training targets</h2>
-      <div class="target-eval-grid">
-        <div
-          v-for="ev in match.target_evaluations"
-          :key="ev.target.id"
-          class="target-eval"
-          :class="{ pass: ev.pass === true, fail: ev.pass === false, na: ev.pass === null }"
-        >
-          <div class="target-eval-head">
-            <div class="target-eval-icon">
-              <span v-if="ev.pass === true">✓</span>
-              <span v-else-if="ev.pass === false">✗</span>
-              <span v-else>—</span>
-            </div>
-            <div class="target-eval-name">
-              <div class="target-eval-title">{{ ev.target.name }}</div>
-              <div class="target-eval-rule mono">{{ targetSummary(ev.target) }}</div>
-            </div>
-            <div class="target-eval-value mono">
-              <div class="big">{{ ev.value !== null ? formatMetric(ev.target.metric_name, ev.value) : 'N/A' }}</div>
-              <div v-if="ev.delta !== null" class="delta">
-                {{ ev.delta >= 0 ? '+' : '' }}{{ formatMetric(ev.target.metric_name, ev.delta) }}
-              </div>
-            </div>
-          </div>
-          <div class="target-eval-scope">
-            <span v-for="c in targetScopeChips(ev.target)" :key="c" class="tag">{{ c }}</span>
-          </div>
-        </div>
-      </div>
-    </template>
 
     <h2 class="section-title">Macro over time</h2>
     <div class="charts-grid">
