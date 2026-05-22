@@ -2,7 +2,7 @@
 import { computed, onMounted, ref, watch } from "vue";
 import {
   api, formatDate, formatDuration, formatMetric, metricLabel,
-  shortenAIName, targetSummary, targetScopeChips,
+  shortenAIName, targetSummary, targetScopeChips, playerColor,
   type MatchDetail, type FacetTag,
 } from "../api/client";
 import RacePill from "../components/RacePill.vue";
@@ -16,16 +16,14 @@ const match = ref<MatchDetail | null>(null);
 const vocab = ref<FacetTag[]>([]);
 const retagging = ref(false);
 
-const RACE_COLOR: Record<string, string> = {
-  Terran: "#5aa9ff",
-  Zerg: "#b45cff",
-  Protoss: "#f1c83b",
-};
-
 async function load() {
   const [m, facets] = await Promise.all([api.getMatch(Number(props.id)), api.facets()]);
   match.value = m;
   vocab.value = facets.tags;
+}
+
+function chartLabel(p: { name: string; race: string }): string {
+  return `${shortenAIName(p.name)} (${p.race[0] ?? "?"})`;
 }
 onMounted(load);
 watch(() => props.id, load);
@@ -67,8 +65,8 @@ const myPlayer = computed(() => {
 const workerSeries = computed(() => {
   if (!match.value) return [];
   return match.value.players.map((p) => ({
-    name: p.name,
-    color: RACE_COLOR[p.race] ?? "#6ea2ff",
+    name: chartLabel(p),
+    color: playerColor(p.player_index),
     data: p.timeseries
       .filter((r) => r.workers !== null)
       .map((r) => [r.game_time_seconds, r.workers!] as [number, number]),
@@ -78,8 +76,8 @@ const workerSeries = computed(() => {
 const supplySeries = computed(() => {
   if (!match.value) return [];
   return match.value.players.map((p) => ({
-    name: p.name,
-    color: RACE_COLOR[p.race] ?? "#6ea2ff",
+    name: chartLabel(p),
+    color: playerColor(p.player_index),
     data: p.timeseries
       .filter((r) => r.supply_used !== null)
       .map((r) => [r.game_time_seconds, r.supply_used!] as [number, number]),
@@ -89,8 +87,8 @@ const supplySeries = computed(() => {
 const armySeries = computed(() => {
   if (!match.value) return [];
   return match.value.players.map((p) => ({
-    name: p.name,
-    color: RACE_COLOR[p.race] ?? "#6ea2ff",
+    name: chartLabel(p),
+    color: playerColor(p.player_index),
     data: p.timeseries
       .filter((r) => r.army_value !== null)
       .map((r) => [r.game_time_seconds, r.army_value!] as [number, number]),
@@ -102,8 +100,8 @@ const apmPlayers = computed(() => {
   return match.value.players
     .filter((p) => p.apm_minutes && p.apm_minutes.length > 0)
     .map((p) => ({
-      name: shortenAIName(p.name),
-      color: RACE_COLOR[p.race] ?? "#6ea2ff",
+      name: chartLabel(p),
+      color: playerColor(p.player_index),
       apm_minutes: p.apm_minutes,
     }));
 });

@@ -295,6 +295,26 @@ export function shortenAIName(name: string): string {
   return m ? `AI (${m[1]})` : name;
 }
 
+// Distinct, accessible-on-dark colors assigned per-player by index.
+// Used in charts where race-color would collide (e.g. 2 Terrans, 1v7 coop).
+// Race is still conveyed in the legend label and in non-chart UI via RacePill.
+const PLAYER_COLORS = [
+  "#5aa9ff",  // sky blue
+  "#f78fb3",  // pink
+  "#a3d977",  // green
+  "#f1c83b",  // yellow
+  "#b45cff",  // purple
+  "#fb923c",  // orange
+  "#22d3ee",  // cyan
+  "#e879f9",  // magenta
+];
+
+export function playerColor(playerIndex: number): string {
+  // player_index in sc2reader is 1-based; clamp to palette length.
+  const i = Math.max(0, (playerIndex - 1)) % PLAYER_COLORS.length;
+  return PLAYER_COLORS[i];
+}
+
 export function findMe(players: Player[]): Player | undefined {
   return players.find((p) => p.is_me === 1) ?? players.find((p) => p.is_human === 1);
 }
